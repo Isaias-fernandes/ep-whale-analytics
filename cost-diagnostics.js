@@ -44,3 +44,4 @@ function diagnose(){
 function inject(){const area=$('#backtestArea');if(!area||$('#btCostDiagnostics'))return;const d=document.createElement('div');d.id='btCostDiagnostics';d.className='wf-block';const results=$('#btResults');results?.after(d);diagnose();const obs=new MutationObserver(()=>diagnose());if(results)obs.observe(results,{childList:true,subtree:true,characterData:true});['btFee','btSlip','btStopATR'].forEach(id=>$("#"+id)?.addEventListener('input',diagnose));}
 setTimeout(inject,800);
 })();
+(()=>{if(document.querySelector('script[data-tf-compare]'))return;const s=document.createElement('script');s.src='timeframe-comparison.js?v=1';s.dataset.tfCompare='1';document.head.appendChild(s)})();
