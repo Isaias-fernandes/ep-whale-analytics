@@ -45,3 +45,4 @@ function inject(){const area=$('#backtestArea');if(!area||$('#btCostDiagnostics'
 setTimeout(inject,800);
 })();
 (()=>{if(document.querySelector('script[data-tf-compare]'))return;const s=document.createElement('script');s.src='timeframe-comparison.js?v=1';s.dataset.tfCompare='1';document.head.appendChild(s)})();
+(()=>{if(document.querySelector('script[data-h1-exit-lab]'))return;const s=document.createElement('script');s.src='h1-exit-lab.js?v=1';s.dataset.h1ExitLab='1';document.head.appendChild(s)})();
