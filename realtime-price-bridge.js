@@ -1,0 +1,1 @@
+(()=>{let pending=false,last=0;function pulse(){let n=Date.now();if(n-last<900||pending)return;pending=true;setTimeout(()=>{pending=false;last=Date.now();try{window.EPPriceTracker?.scan?.()}catch(e){console.warn('EP price bridge',e)}},120)}window.addEventListener('crypto-price-tick',pulse);})();
