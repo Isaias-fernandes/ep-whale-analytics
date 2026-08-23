@@ -19,5 +19,14 @@ function init(){
    btn.textContent=open?'Ocultar histórico':'Mostrar histórico';
  };
 }
+function loadSignalQuality(){
+ if(document.querySelector('script[data-signal-quality]')) return;
+ const s=document.createElement('script');
+ s.src='signal-quality.js?v=1';
+ s.dataset.signalQuality='1';
+ s.async=true;
+ document.body.appendChild(s);
+}
 setTimeout(init,500);
+setTimeout(loadSignalQuality,1200);
 })();
