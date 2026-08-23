@@ -19,14 +19,17 @@ function init(){
    btn.textContent=open?'Ocultar histórico':'Mostrar histórico';
  };
 }
-function loadSignalQuality(){
- if(document.querySelector('script[data-signal-quality]')) return;
+function loadScript(src,attr){
+ if(document.querySelector(`script[${attr}]`)) return;
  const s=document.createElement('script');
- s.src='signal-quality.js?v=1';
- s.dataset.signalQuality='1';
+ s.src=src;
+ s.setAttribute(attr,'1');
  s.async=true;
  document.body.appendChild(s);
 }
+function loadSignalQuality(){loadScript('signal-quality.js?v=1','data-signal-quality')}
+function loadPriceTracker(){loadScript('signal-price-tracker.js?v=1','data-price-tracker')}
 setTimeout(init,500);
 setTimeout(loadSignalQuality,1200);
+setTimeout(loadPriceTracker,1400);
 })();
