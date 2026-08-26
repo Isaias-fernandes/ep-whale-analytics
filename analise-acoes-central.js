@@ -3,16 +3,28 @@
   const fmt=n=>Number.isFinite(+n)?Math.round(+n):'—';
   let focoB3=null;
 
+  function normalizarTicker(v){return String(v||'').trim().toUpperCase().replace(/\s+/g,'');}
+
   function fundamentosSalvos(ticker){
     try{return JSON.parse(localStorage.getItem('ep_fundamentos_'+ticker)||'{}')||{};}catch{return {};}
   }
 
-  function ativoCentral(){
-    const cards=$('#decisionCenter')?.querySelectorAll('.decision-card');
-    const card=cards?.[1];
-    if(!card)return null;
-    const ticker=(card.querySelector('.central-auto-head>b')?.textContent||'').trim();
-    return ticker||focoB3||null;
+  function localizarB3(){
+    const map=window.B3App?.getData?.();
+    const cards=[...($('#decisionCenter')?.querySelectorAll('.decision-card')||[])];
+    if(!map?.get||!cards.length)return null;
+
+    for(const card of cards){
+      const ticker=normalizarTicker(card.querySelector('.central-auto-head>b')?.textContent);
+      if(ticker&&map.has(ticker))return {card,ticker};
+    }
+
+    const foco=normalizarTicker(focoB3);
+    if(foco&&map.has(foco)){
+      const card=cards.find(c=>normalizarTicker(c.querySelector('.central-auto-head>b')?.textContent)===foco);
+      if(card)return {card,ticker:foco};
+    }
+    return null;
   }
 
   function cor(n){return n>=75?'#49d58c':n>=60?'#f3c969':n>=45?'#f0a45d':'#ff7b7b';}
@@ -43,16 +55,13 @@
   function render(){
     const api=window.EPAnaliseIntegradaAcoes;
     const map=window.B3App?.getData?.();
-    const ticker=ativoCentral();
-    if(!api?.analisar||!map?.get||!ticker)return;
-    const x=map.get(ticker);
+    const alvo=localizarB3();
+    if(!api?.analisar||!map?.get||!alvo)return;
+    const x=map.get(alvo.ticker);
     if(!x)return;
-    const r=api.analisar(x,fundamentosSalvos(ticker));
-    const cards=$('#decisionCenter')?.querySelectorAll('.decision-card');
-    const card=cards?.[1];
-    if(!card)return;
-    card.querySelector('[data-analise-acoes-central]')?.remove();
-    card.insertAdjacentHTML('beforeend',htmlAnalise(r));
+    const r=api.analisar(x,fundamentosSalvos(alvo.ticker));
+    alvo.card.querySelector('[data-analise-acoes-central]')?.remove();
+    alvo.card.insertAdjacentHTML('beforeend',htmlAnalise(r));
   }
 
   function iniciar(){
@@ -63,7 +72,7 @@
     const dc=$('#decisionCenter');
     if(dc)new MutationObserver(()=>setTimeout(render,0)).observe(dc,{childList:true,subtree:false});
     setInterval(()=>{if(!document.hidden)render()},5000);
-    window.EPAnaliseAcoesCentral={render,versao:'1.0.0-isolada',somenteAcoes:true,alteraMotores:false};
+    window.EPAnaliseAcoesCentral={render,versao:'1.1.0-isolada',somenteAcoes:true,alteraMotores:false};
   }
   setTimeout(iniciar,900);
 })();
