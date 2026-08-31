@@ -103,8 +103,16 @@
     section.innerHTML = `<h2>PREVISÃO OBSERVACIONAL — MOVIMENTO ESTICADO MTF</h2><p class="sub">Camada independente dos 5 motores oficiais. Mede risco de continuação/exaustão; não cria ordem nem confirma entrada sozinha.</p><div class="stretch-controls"><label>Mercado<select id="stretchMarket"><option value="crypto">Cripto</option><option value="b3">B3</option></select></label><label>Ativo<select id="stretchAsset"></select></label><button id="stretchRefresh">Atualizar previsão</button><span id="stretchStatus" class="sub">Aguardando...</span></div><div id="stretchTable"></div>`;
     anchor.insertAdjacentElement("afterend", section);
     const style = document.createElement("style");
-    style.textContent = `.stretch-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.stretch-controls label{min-width:170px}.stretch-stage{font-weight:800}.stretch-normal{color:#60d394}.stretch-watch{color:#74b9ff}.stretch-pre{color:#ffd166}.stretch-risk{color:#ff6b7a}`;
+    style.textContent = `.stretch-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.stretch-controls label{min-width:170px}.stretch-stage{font-weight:800}.stretch-normal{color:#60d394}.stretch-watch{color:#74b9ff}.stretch-pre{color:#ffd166}.stretch-risk{color:#ff6b7a}.stretch-central-summary{margin-top:12px;padding:12px;border:1px solid #29415e;border-radius:12px;background:#091827}.stretch-central-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.stretch-central-head small{color:#8fa9c2}.stretch-central-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin-top:10px}.stretch-central-grid span{display:grid;gap:3px;padding:9px;border:1px solid #29415e;border-radius:9px;background:#0b1726}.stretch-central-grid em{font-style:normal;font-weight:800}.stretch-central-grid small{color:#a9bfd2}@media(max-width:650px){.stretch-central-grid{grid-template-columns:repeat(2,1fr)}}`;
     document.head.appendChild(style);
+    const central = $("#decisionCenter");
+    if (central && !$("#stretchCentralSummary")) {
+      const summary = document.createElement("div");
+      summary.id = "stretchCentralSummary";
+      summary.className = "stretch-central-summary";
+      summary.innerHTML = '<b>Esticamento MTF observacional</b><span class="sub">Aguardando análise...</span>';
+      central.insertAdjacentElement("afterend", summary);
+    }
   }
   function fillAssets() {
     const market = $("#stretchMarket")?.value || "crypto", select = $("#stretchAsset");
@@ -119,6 +127,11 @@
     PRE_STRETCH: "PRÉ-ESTICAMENTO",
     STRETCH_RISK: "RISCO DE ESTICAMENTO",
   })[s] || s;
+  function renderCentral(market, symbol, rows) {
+    const el = $("#stretchCentralSummary");
+    if (!el) return;
+    el.innerHTML = `<div class="stretch-central-head"><b>ESTICAMENTO MTF — ${market === "crypto" ? "CRIPTO" : "B3"} — ${symbol}</b><small>OBSERVACIONAL • não altera os 5 motores</small></div><div class="stretch-central-grid">${rows.map((r) => r.error ? `<span><b>${r.tf}</b><em>Indisponível</em></span>` : `<span class="${stageClass(r.stage)}"><b>${r.tf}</b><em>${stageLabel(r.stage)}</em><small>${r.direction === "UP" ? "↑ ALTA" : "↓ BAIXA"} • ${r.score}/100</small></span>`).join("")}</div>`;
+  }
   async function refresh() {
     const market = $("#stretchMarket").value, symbol = $("#stretchAsset").value, status = $("#stretchStatus"), table = $("#stretchTable");
     status.textContent = `Calculando ${symbol} em 4 períodos...`;
@@ -129,6 +142,7 @@
       } catch (e) { return { tf: tf.key, error: e.message || String(e) }; }
     }));
     table.innerHTML = `<div style="overflow-x:auto"><table><tr><th>Período</th><th>Estágio</th><th>Direção</th><th>Pontuação</th><th>Movimento projetado*</th><th>RSI</th><th>Distância EMA20/ATR</th><th>Dados</th></tr>${rows.map((r) => r.error ? `<tr><td><b>${r.tf}</b></td><td colspan="7">Indisponível: ${r.error}</td></tr>` : `<tr><td><b>${r.tf}</b></td><td class="stretch-stage ${stageClass(r.stage)}">${stageLabel(r.stage)}</td><td>${r.direction === "UP" ? "↑ ALTA" : "↓ BAIXA"}</td><td>${r.score}/100</td><td>${r.projected.toFixed(2)}%</td><td>${r.rsi.toFixed(1)}</td><td>${r.distAtr.toFixed(2)} ATR</td><td>${r.candles} candles</td></tr>`).join("")}</table></div><p class="sub">Normal: abaixo de 45 • Observação: 45–64 • Pré-esticamento: 65–79 • Risco de esticamento: 80 ou mais.</p><p class="sub">*Faixa estatística observacional baseada no ATR e na pontuação atual; não é garantia de movimento.</p>`;
+    renderCentral(market, symbol, rows);
     status.textContent = rows.some((r) => !r.error) ? `Atualizado ${new Date().toLocaleTimeString("pt-BR")}` : "Nenhum período disponível";
     window.dispatchEvent(new CustomEvent("stretch-observer-updated", { detail: { market, symbol, rows, ts: Date.now() } }));
   }
