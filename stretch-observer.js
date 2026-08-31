@@ -113,6 +113,12 @@
     select.innerHTML = items.map(([symbol, name]) => `<option value="${symbol}">${market === "crypto" ? `${name}/USDT` : `${symbol} — ${name}`}</option>`).join("");
   }
   const stageClass = (s) => s === "STRETCH_RISK" ? "stretch-risk" : s === "PRE_STRETCH" ? "stretch-pre" : s === "WATCH" ? "stretch-watch" : "stretch-normal";
+  const stageLabel = (s) => ({
+    NORMAL: "NORMAL",
+    WATCH: "OBSERVAÇÃO",
+    PRE_STRETCH: "PRÉ-ESTIRAMENTO",
+    STRETCH_RISK: "RISCO DE ESTIRAMENTO",
+  })[s] || s;
   async function refresh() {
     const market = $("#stretchMarket").value, symbol = $("#stretchAsset").value, status = $("#stretchStatus"), table = $("#stretchTable");
     status.textContent = `Calculando ${symbol} em 4 períodos...`;
@@ -122,7 +128,7 @@
         return { tf: tf.key, ...analyze(candles), candles: candles.length };
       } catch (e) { return { tf: tf.key, error: e.message || String(e) }; }
     }));
-    table.innerHTML = `<div style="overflow-x:auto"><table><tr><th>Período</th><th>Estágio</th><th>Direção</th><th>Score</th><th>Movimento projetado*</th><th>RSI</th><th>Distância EMA20/ATR</th><th>Dados</th></tr>${rows.map((r) => r.error ? `<tr><td><b>${r.tf}</b></td><td colspan="7">Indisponível: ${r.error}</td></tr>` : `<tr><td><b>${r.tf}</b></td><td class="stretch-stage ${stageClass(r.stage)}">${r.stage}</td><td>${r.direction === "UP" ? "↑ ALTA" : "↓ BAIXA"}</td><td>${r.score}/100</td><td>${r.projected.toFixed(2)}%</td><td>${r.rsi.toFixed(1)}</td><td>${r.distAtr.toFixed(2)} ATR</td><td>${r.candles} candles</td></tr>`).join("")}</table></div><p class="sub">*Faixa estatística observacional baseada no ATR e no score atual; não é garantia de movimento.</p>`;
+    table.innerHTML = `<div style="overflow-x:auto"><table><tr><th>Período</th><th>Estágio</th><th>Direção</th><th>Pontuação</th><th>Movimento projetado*</th><th>RSI</th><th>Distância EMA20/ATR</th><th>Dados</th></tr>${rows.map((r) => r.error ? `<tr><td><b>${r.tf}</b></td><td colspan="7">Indisponível: ${r.error}</td></tr>` : `<tr><td><b>${r.tf}</b></td><td class="stretch-stage ${stageClass(r.stage)}">${stageLabel(r.stage)}</td><td>${r.direction === "UP" ? "↑ ALTA" : "↓ BAIXA"}</td><td>${r.score}/100</td><td>${r.projected.toFixed(2)}%</td><td>${r.rsi.toFixed(1)}</td><td>${r.distAtr.toFixed(2)} ATR</td><td>${r.candles} candles</td></tr>`).join("")}</table></div><p class="sub">Normal: abaixo de 45 • Observação: 45–64 • Pré-estiramento: 65–79 • Risco de estiramento: 80 ou mais.</p><p class="sub">*Faixa estatística observacional baseada no ATR e na pontuação atual; não é garantia de movimento.</p>`;
     status.textContent = rows.some((r) => !r.error) ? `Atualizado ${new Date().toLocaleTimeString("pt-BR")}` : "Nenhum período disponível";
     window.dispatchEvent(new CustomEvent("stretch-observer-updated", { detail: { market, symbol, rows, ts: Date.now() } }));
   }
