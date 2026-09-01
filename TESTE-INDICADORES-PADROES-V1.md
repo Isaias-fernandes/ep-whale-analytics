@@ -38,3 +38,4 @@ Os resultados são observacionais. A máxima futura é usada somente como rótul
 - São preservados no máximo 300 episódios no navegador.
 - O botão `Exportar JSON` permite criar uma cópia externa dos resultados.
 - Limpar dados do navegador também remove esse histórico; nesta versão não existe sincronização com Supabase.
+- A janela do laboratório é exibida imediatamente acima da Central de Interpretação.
