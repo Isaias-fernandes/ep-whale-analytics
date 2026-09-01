@@ -39,3 +39,7 @@ Os resultados são observacionais. A máxima futura é usada somente como rótul
 - O botão `Exportar JSON` permite criar uma cópia externa dos resultados.
 - Limpar dados do navegador também remove esse histórico; nesta versão não existe sincronização com Supabase.
 - A janela do laboratório é exibida imediatamente acima da Central de Interpretação.
+- Topos e fundos duplos exigem separação mínima, altura em ATR e rompimento da linha de pescoço.
+- Sinais direcionais com volume abaixo de 0,8x ficam limitados a 64 pontos; abaixo de 1,2x ficam limitados a 79 pontos.
+- Padrões neutros são armazenados como grupo de controle e medem o maior movimento absoluto posterior.
+- A exportação V2 inclui os episódios e até 50 resumos completos de backtest.
