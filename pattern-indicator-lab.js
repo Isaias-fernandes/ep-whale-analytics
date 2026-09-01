@@ -135,6 +135,84 @@
     }
     return { config: configName, horizon, signals, targets, patterns: [...groups.values()].map(g => ({ ...g, average: g.sum / g.signals })).sort((a, b) => b.targets[10] - a.targets[10] || b.average - a.average) };
   }
+  function marketRegime(candles) {
+    const close = candles.map(x => x.c), e20 = ema(close, 20).at(-1), e50 = ema(close, 50).at(-1), currentAtr = atr(candles, 14), oldAtr = atr(candles.slice(0, -8), 14);
+    const trendSlope = slope(close.slice(-20)), distance = Math.abs(e20 - e50), trendGate = (currentAtr || close.at(-1) * .005) * .5;
+    if (Number.isFinite(oldAtr) && currentAtr < oldAtr * .8) return 'COMPRESSÃO';
+    if (Number.isFinite(oldAtr) && currentAtr > oldAtr * 1.25) return 'EXPANSÃO';
+    if (e20 > e50 && trendSlope > 0 && distance >= trendGate) return 'ALTA';
+    if (e20 < e50 && trendSlope < 0 && distance >= trendGate) return 'BAIXA';
+    return 'LATERAL';
+  }
+  function outcome(candles, index, horizon, direction) {
+    const entry = candles[index].c, future = candles.slice(index + 1, index + 1 + horizon);
+    const up = (Math.max(...future.map(x => x.h)) - entry) / entry * 100, down = (entry - Math.min(...future.map(x => x.l))) / entry * 100;
+    const mfe = direction === 'BUY' ? up : direction === 'SELL' ? down : Math.max(up, down);
+    const mae = direction === 'BUY' ? -down : direction === 'SELL' ? -up : -Math.min(up, down);
+    const targetBars = {};
+    for (const target of TARGETS) {
+      const found = future.findIndex(x => direction === 'BUY' ? (x.h - entry) / entry * 100 >= target : direction === 'SELL' ? (entry - x.l) / entry * 100 >= target : Math.max((x.h - entry) / entry * 100, (entry - x.l) / entry * 100) >= target);
+      targetBars[target] = found >= 0 ? found + 1 : null;
+    }
+    return { entry, mfe, mae, targetBars };
+  }
+  function collectWalkForward(candles, config, start, end, horizon, minimumScore) {
+    const rows = [];
+    let nextEligible = start;
+    for (let index = Math.max(80, start); index < end - horizon; index++) {
+      if (index < nextEligible) continue;
+      const history = candles.slice(0, index + 1), result = analyze(history, config);
+      const neutralControl = result.direction === 'NEUTRAL' && result.pattern.name !== 'Sem padrão confirmado';
+      if (!neutralControl && result.score < minimumScore) continue;
+      const resultOutcome = outcome(candles, index, horizon, result.direction);
+      rows.push({
+        id: `${candles[index].t}-${config}-${result.pattern.name}-${result.direction}`,
+        index, time: candles[index].t, config, regime: marketRegime(history),
+        patternType: result.pattern.type, pattern: result.pattern.name,
+        direction: result.direction, score: result.score, volumeRatio: result.volumeRatio,
+        ...resultOutcome
+      });
+      nextEligible = index + horizon;
+    }
+    return rows;
+  }
+  function summarizeWalkRows(rows) {
+    const groups = new Map();
+    for (const row of rows) {
+      const key = `${row.patternType}|${row.pattern}|${row.regime}`;
+      const group = groups.get(key) || { key, patternType: row.patternType, pattern: row.pattern, regime: row.regime, n: 0, mfe: 0, mae: 0, score: 0, volume: 0, targets: Object.fromEntries(TARGETS.map(target => [target, 0])), bars10: [] };
+      group.n++; group.mfe += row.mfe; group.mae += row.mae; group.score += row.score; group.volume += row.volumeRatio;
+      for (const target of TARGETS) if (row.targetBars[target] != null) group.targets[target]++;
+      if (row.targetBars[10] != null) group.bars10.push(row.targetBars[10]);
+      groups.set(key, group);
+    }
+    return [...groups.values()].map(group => ({
+      ...group,
+      avgMfe: group.mfe / group.n,
+      avgMae: group.mae / group.n,
+      avgScore: group.score / group.n,
+      avgVolume: group.volume / group.n,
+      avgBars10: group.bars10.length ? avg(group.bars10) : null,
+      rates: Object.fromEntries(TARGETS.map(target => [target, group.targets[target] / group.n * 100]))
+    }));
+  }
+  function walkForward(candles, config, horizon = 48, minimumScore = 70) {
+    const split = Math.floor(candles.length * .7), trainRows = collectWalkForward(candles, config, 0, split, horizon, minimumScore), validationRows = collectWalkForward(candles, config, split, candles.length, horizon, minimumScore);
+    const trainGroups = new Map(summarizeWalkRows(trainRows).map(row => [row.key, row])), validationGroups = summarizeWalkRows(validationRows);
+    const neutral = validationRows.filter(row => row.direction === 'NEUTRAL');
+    const neutralRate10 = neutral.length ? neutral.filter(row => row.targetBars[10] != null).length / neutral.length * 100 : 0;
+    const comparisons = validationGroups.map(validation => {
+      const train = trainGroups.get(validation.key) || null;
+      const stable = !train || !train.rates[10] || validation.rates[10] >= train.rates[10] * .5;
+      const beatsControl = validation.rates[10] > neutralRate10 * 1.25;
+      const riskOk = validation.avgMfe > Math.abs(validation.avgMae);
+      let status = 'INCONCLUSIVO';
+      if (validation.n >= 20 && beatsControl && riskOk && stable) status = 'PROMISSOR';
+      else if (validation.n >= 20 && (!beatsControl || !riskOk)) status = 'REJEITAR';
+      return { key: validation.key, train, validation, neutralRate10, stable, beatsControl, riskOk, status };
+    }).sort((a, b) => (a.status === 'PROMISSOR' ? -1 : b.status === 'PROMISSOR' ? 1 : 0) || b.validation.rates[10] - a.validation.rates[10] || b.validation.n - a.validation.n);
+    return { version: 1, config, split, trainSize: split, validationSize: candles.length - split, horizon, minimumScore, neutralRate10, trainSignals: trainRows.length, validationSignals: validationRows.length, comparisons };
+  }
   const normalizeB3 = rows => (rows || []).map(x => ({ t: +(x.date || x.datetime || x.timestamp || 0) * (+(x.date || 0) < 1e12 ? 1000 : 1), o: +(x.open ?? x.close), h: +(x.high ?? x.close), l: +(x.low ?? x.close), c: +x.close, v: +(x.volume || 0) })).filter(x => [x.o, x.h, x.l, x.c].every(Number.isFinite)).sort((a, b) => a.t - b.t);
   async function fetchCandles(market, symbol, timeframe) {
     const tf = TF[timeframe] || TF.M15;
@@ -169,7 +247,7 @@
       return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
   }
-  function storeBacktest(market, symbol, timeframe, horizon, minimumScore, candles, results) {
+  function storeBacktest(market, symbol, timeframe, horizon, minimumScore, candles, results, walkForwardResults) {
     const rows = readBacktests();
     rows.push({
       version: 1, testedAt: new Date().toISOString(), market, symbol, timeframe, horizon, minimumScore,
@@ -178,7 +256,8 @@
         config: result.config,
         signals: result.signals.length,
         targets: result.targets,
-        patterns: result.patterns
+        patterns: result.patterns,
+        walkForward: walkForwardResults.find(item => item.config === result.config)
       }))
     });
     localStorage.setItem(BACKTEST_KEY, JSON.stringify(rows.slice(-BACKTEST_LIMIT)));
@@ -264,6 +343,9 @@
     const total = result.signals.length;
     return `<section class="pattern-lab-result"><h4>${CONFIGS[result.config].label}</h4><div class="pattern-lab-kpis"><span>Sinais<b>${total}</b></span>${TARGETS.map(t => `<span>Alvo ${t}%<b>${result.targets[t]}</b><small>${total ? pct(result.targets[t] / total * 100) : '—'}</small></span>`).join('')}</div><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Padrão</th><th>Sinais</th><th>Favoráveis</th><th>Média</th>${TARGETS.map(t => `<th>≥${t}%</th>`).join('')}</tr></thead><tbody>${result.patterns.length ? result.patterns.map(g => `<tr><td>${g.pattern}</td><td>${g.signals}</td><td>${pct(g.favorable / g.signals * 100)}</td><td>${pct(g.average)}</td>${TARGETS.map(t => `<td>${g.targets[t]}</td>`).join('')}</tr>`).join('') : '<tr><td colspan="9">Nenhum sinal elegível nesta amostra.</td></tr>'}</tbody></table></div></section>`;
   }
+  function walkForwardHtml(reports) {
+    return reports.map(report => `<section class="pattern-lab-result"><h4>WALK-FORWARD 70/30 — ${CONFIGS[report.config].label}</h4><p class="sub">Desenvolvimento: ${report.trainSize} candles/${report.trainSignals} sinais • Validação: ${report.validationSize} candles/${report.validationSignals} sinais • Controle neutro ≥10%: ${pct(report.neutralRate10)}</p><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Padrão + regime</th><th>Amostra validação</th><th>≥10% treino</th><th>≥10% validação</th><th>MFE médio</th><th>MAE médio</th><th>Volume</th><th>Candles até 10%</th><th>Conclusão</th></tr></thead><tbody>${report.comparisons.length ? report.comparisons.slice(0, 20).map(row => `<tr><td>${row.validation.pattern}<small> • ${row.validation.regime}</small></td><td>${row.validation.n}</td><td>${row.train ? pct(row.train.rates[10]) : '—'}</td><td>${pct(row.validation.rates[10])}</td><td>${pct(row.validation.avgMfe)}</td><td>${pct(row.validation.avgMae)}</td><td>${row.validation.avgVolume.toFixed(2)}x</td><td>${row.validation.avgBars10 == null ? '—' : row.validation.avgBars10.toFixed(1)}</td><td class="${row.status === 'PROMISSOR' ? 'buy' : row.status === 'REJEITAR' ? 'sell' : 'wait'}"><b>${row.status}</b></td></tr>`).join('') : '<tr><td colspan="9">Amostra insuficiente.</td></tr>'}</tbody></table></div><p class="sub">PROMISSOR exige ≥20 sinais na validação, superar o controle neutro em 25%, MFE maior que MAE e estabilidade em relação ao desenvolvimento.</p></section>`).join('');
+  }
   function fillAssets() {
     const market = document.querySelector('#patternLabMarket')?.value || 'crypto', select = document.querySelector('#patternLabAsset');
     if (!select) return;
@@ -279,9 +361,10 @@
       const candles = await fetchCandles(market, symbol, timeframe);
       if (candles.length < horizon + 80) throw Error(`Amostra insuficiente: ${candles.length} candles`);
       const current = evaluate(candles, 'atual', horizon, score), candidate = evaluate(candles, 'candidata', horizon, score);
-      storeBacktest(market, symbol, timeframe, horizon, score, candles, [current, candidate]);
+      const walkReports = [walkForward(candles, 'atual', horizon, score), walkForward(candles, 'candidata', horizon, score)];
+      storeBacktest(market, symbol, timeframe, horizon, score, candles, [current, candidate], walkReports);
       const history = followAndStore(candles, market, symbol, timeframe, horizon, score);
-      output.innerHTML = `<p class="sub">${candles.length} candles. Alvos medidos pela máxima excursão favorável após o sinal; não representam lucro garantido.</p>${resultHtml(current)}${resultHtml(candidate)}`;
+      output.innerHTML = `<p class="sub">${candles.length} candles. Alvos medidos pela máxima excursão favorável após o sinal; não representam lucro garantido.</p>${walkForwardHtml(walkReports)}${resultHtml(current)}${resultHtml(candidate)}`;
       status.textContent = `Concluído • ${symbol} • ${timeframe} • ${history.length} episódios armazenados localmente`;
     } catch (error) { status.textContent = `Falha no teste: ${error.message}`; }
   }
@@ -294,6 +377,6 @@
     const style = document.createElement('style'); style.textContent = '.pattern-lab-controls{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) 150px;gap:10px;align-items:end}.pattern-lab-result{margin-top:14px;padding:12px;background:#091827;border:1px solid #29415e;border-radius:10px}.pattern-lab-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:10px 0}.pattern-lab-kpis span{padding:8px;background:#0d1a2b;border-radius:7px;font-size:11px}.pattern-lab-kpis b,.pattern-lab-kpis small{display:block;margin-top:3px}@media(max-width:900px){.pattern-lab-controls,.pattern-lab-kpis{grid-template-columns:repeat(2,1fr)}}'; document.head.appendChild(style);
     fillAssets(); renderHistory(); document.querySelector('#patternLabMarket').addEventListener('change', fillAssets); document.querySelector('#patternLabRun').addEventListener('click', run); document.querySelector('#patternLabExport').addEventListener('click', exportHistory);
   }
-  window.EPPatternIndicatorLab = { analyze, classifyPattern, evaluate, readHistory, readBacktests, followAndStore, configs: CONFIGS, targets: TARGETS };
+  window.EPPatternIndicatorLab = { analyze, classifyPattern, evaluate, walkForward, marketRegime, readHistory, readBacktests, followAndStore, configs: CONFIGS, targets: TARGETS };
   setTimeout(init, 900);
 })();
