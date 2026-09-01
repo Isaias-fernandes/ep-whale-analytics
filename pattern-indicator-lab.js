@@ -1,7 +1,9 @@
 (() => {
   const TARGETS = [10, 20, 30, 40, 50];
   const HISTORY_KEY = 'ep_pattern_signal_history_v1';
+  const BACKTEST_KEY = 'ep_pattern_backtests_v1';
   const HISTORY_LIMIT = 300;
+  const BACKTEST_LIMIT = 50;
   const CONFIGS = {
     atual: { label: 'Atual (controle)', rsi: 7, cci: 14, macd: [20, 30, 60] },
     candidata: { label: 'Candidata', rsi: 14, cci: 20, macd: [12, 26, 9] }
@@ -83,13 +85,16 @@
     const ascending = Math.abs(slope(highs)) <= Math.abs(slope(lows)) * .25 && slope(lows) > 0;
     const descending = Math.abs(slope(lows)) <= Math.abs(slope(highs)) * .25 && slope(highs) < 0;
     const currentAtr = atr(w), oldAtr = atr(w.slice(0, -8)), compression = Number.isFinite(currentAtr) && Number.isFinite(oldAtr) && currentAtr < oldAtr * .78;
-    const peaks = swings(w, 'h', true), valleys = swings(w, 'l', false), tol = Math.max(currentAtr || 0, b.c * .008);
-    const doubleTop = peaks.length >= 2 && Math.abs(peaks.at(-1).x - peaks.at(-2).x) <= tol && b.c < avg(w.slice(-8).map(x => x.c));
-    const doubleBottom = valleys.length >= 2 && Math.abs(valleys.at(-1).x - valleys.at(-2).x) <= tol && b.c > avg(w.slice(-8).map(x => x.c));
-    if (b.c > high) return { type: 'CONTINUAÇÃO', direction: 'BUY', name: 'Rompimento da máxima de 20 períodos', confirmed: true, strength: 90 };
-    if (b.c < low) return { type: 'CONTINUAÇÃO', direction: 'SELL', name: 'Rompimento da mínima de 20 períodos', confirmed: true, strength: 90 };
+    const peaks = swings(w, 'h', true), valleys = swings(w, 'l', false), tol = Math.max((currentAtr || 0) * .5, b.c * .003);
+    const p1 = peaks.at(-2), p2 = peaks.at(-1), v1 = valleys.at(-2), v2 = valleys.at(-1);
+    const topNeckline = p1 && p2 ? Math.min(...w.slice(p1.i, p2.i + 1).map(x => x.l)) : NaN;
+    const bottomNeckline = v1 && v2 ? Math.max(...w.slice(v1.i, v2.i + 1).map(x => x.h)) : NaN;
+    const doubleTop = !!(p1 && p2 && p2.i - p1.i >= 8 && p2.i >= w.length - 18 && Math.abs(p2.x - p1.x) <= tol && avg([p1.x, p2.x]) - topNeckline >= (currentAtr || 0) * 1.2 && b.c < topNeckline);
+    const doubleBottom = !!(v1 && v2 && v2.i - v1.i >= 8 && v2.i >= w.length - 18 && Math.abs(v2.x - v1.x) <= tol && bottomNeckline - avg([v1.x, v2.x]) >= (currentAtr || 0) * 1.2 && b.c > bottomNeckline);
     if (doubleBottom) return { type: 'REVERSÃO', direction: 'BUY', name: 'Fundo duplo', confirmed: true, strength: 76 };
     if (doubleTop) return { type: 'REVERSÃO', direction: 'SELL', name: 'Topo duplo', confirmed: true, strength: 76 };
+    if (b.c > high) return { type: 'CONTINUAÇÃO', direction: 'BUY', name: 'Rompimento da máxima de 20 períodos', confirmed: true, strength: 90 };
+    if (b.c < low) return { type: 'CONTINUAÇÃO', direction: 'SELL', name: 'Rompimento da mínima de 20 períodos', confirmed: true, strength: 90 };
     if (morning || bullEng || hammer) return { type: 'REVERSÃO', direction: 'BUY', name: morning ? 'Estrela da manhã' : bullEng ? 'Engolfo de alta' : 'Martelo', confirmed: false, strength: 62 };
     if (evening || bearEng || shooting) return { type: 'REVERSÃO', direction: 'SELL', name: evening ? 'Estrela da noite' : bearEng ? 'Engolfo de baixa' : 'Estrela cadente', confirmed: false, strength: 62 };
     if (flag) return { type: 'CONTINUAÇÃO', direction: impulse > 0 ? 'BUY' : 'SELL', name: impulse > 0 ? 'Bandeira de alta' : 'Bandeira de baixa', confirmed: false, strength: 68 };
@@ -107,16 +112,20 @@
     const ignition = sign && (sign > 0 ? cv >= 100 && mv.histogram > mv.previousHistogram : cv <= -100 && mv.histogram < mv.previousHistogram);
     let score = pattern.strength + (aligned ? 14 : 0) + (ignition ? 10 : 0) + (volumeRatio >= 2 ? 12 : volumeRatio >= 1.5 ? 8 : volumeRatio >= 1.2 ? 4 : 0);
     if (pattern.type === 'NEUTRO') score = Math.min(score, 49);
+    else if (volumeRatio < .8) score = Math.min(score, 64);
+    else if (volumeRatio < 1.2) score = Math.min(score, 79);
     return { config: configName, pattern, direction: pattern.direction, score: clamp(Math.round(score)), rsi: rv, cci: cv, macd: mv, volumeRatio, momentumAligned: !!aligned, ignition: !!ignition };
   }
   function evaluate(candles, configName, horizon = 48, minimumScore = 70) {
     const targets = Object.fromEntries(TARGETS.map(x => [x, 0])), groups = new Map(), signals = [], warmup = 80;
     for (let i = warmup; i < candles.length - horizon; i++) {
       const result = analyze(candles.slice(0, i + 1), configName);
-      if (result.direction === 'NEUTRAL' || result.score < minimumScore) continue;
+      const neutralControl = result.direction === 'NEUTRAL' && result.pattern.name !== 'Sem padrão confirmado';
+      if (!neutralControl && result.score < minimumScore) continue;
       const entry = candles[i].c, future = candles.slice(i + 1, i + 1 + horizon);
-      const favorable = result.direction === 'BUY' ? (Math.max(...future.map(x => x.h)) - entry) / entry * 100 : (entry - Math.min(...future.map(x => x.l))) / entry * 100;
-      const adverse = result.direction === 'BUY' ? (Math.min(...future.map(x => x.l)) - entry) / entry * 100 : (entry - Math.max(...future.map(x => x.h))) / entry * 100;
+      const up = (Math.max(...future.map(x => x.h)) - entry) / entry * 100, down = (entry - Math.min(...future.map(x => x.l))) / entry * 100;
+      const favorable = result.direction === 'BUY' ? up : result.direction === 'SELL' ? down : Math.max(up, down);
+      const adverse = result.direction === 'BUY' ? -down : result.direction === 'SELL' ? -up : -Math.min(up, down);
       signals.push({ i, time: candles[i].t, entry, favorable, adverse, ...result });
       TARGETS.forEach(t => { if (favorable >= t) targets[t]++; });
       const key = `${result.pattern.type}: ${result.pattern.name}`, g = groups.get(key) || { pattern: key, signals: 0, favorable: 0, sum: 0, targets: Object.fromEntries(TARGETS.map(x => [x, 0])) };
@@ -154,6 +163,26 @@
     localStorage.setItem(HISTORY_KEY, JSON.stringify(limited));
     return limited;
   }
+  function readBacktests() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(BACKTEST_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  function storeBacktest(market, symbol, timeframe, horizon, minimumScore, candles, results) {
+    const rows = readBacktests();
+    rows.push({
+      version: 1, testedAt: new Date().toISOString(), market, symbol, timeframe, horizon, minimumScore,
+      candles: candles.length,
+      configurations: results.map(result => ({
+        config: result.config,
+        signals: result.signals.length,
+        targets: result.targets,
+        patterns: result.patterns
+      }))
+    });
+    localStorage.setItem(BACKTEST_KEY, JSON.stringify(rows.slice(-BACKTEST_LIMIT)));
+  }
   function followAndStore(candles, market, symbol, timeframe, horizon, minimumScore) {
     const latest = candles.at(-1), rows = readHistory();
     for (const row of rows.filter(x => x.status === 'ATIVO' && x.market === market && x.symbol === symbol && x.timeframe === timeframe)) {
@@ -162,8 +191,9 @@
       row.observedBars = future.length;
       row.lastTime = latest.t;
       row.lastPrice = latest.c;
-      const favorable = row.direction === 'BUY' ? (Math.max(...future.map(x => x.h)) - row.entryPrice) / row.entryPrice * 100 : (row.entryPrice - Math.min(...future.map(x => x.l))) / row.entryPrice * 100;
-      const adverse = row.direction === 'BUY' ? (Math.min(...future.map(x => x.l)) - row.entryPrice) / row.entryPrice * 100 : (row.entryPrice - Math.max(...future.map(x => x.h))) / row.entryPrice * 100;
+      const up = (Math.max(...future.map(x => x.h)) - row.entryPrice) / row.entryPrice * 100, down = (row.entryPrice - Math.min(...future.map(x => x.l))) / row.entryPrice * 100;
+      const favorable = row.direction === 'BUY' ? up : row.direction === 'SELL' ? down : Math.max(up, down);
+      const adverse = row.direction === 'BUY' ? -down : row.direction === 'SELL' ? -up : -Math.min(up, down);
       row.maxFavorablePct = Math.max(row.maxFavorablePct || 0, favorable);
       row.maxAdversePct = Math.min(row.maxAdversePct || 0, adverse);
       row.targets = Object.fromEntries(TARGETS.map(target => [target, row.maxFavorablePct >= target]));
@@ -175,7 +205,8 @@
     }
     for (const config of Object.keys(CONFIGS)) {
       const result = analyze(candles, config);
-      if (result.direction === 'NEUTRAL' || result.score < minimumScore) continue;
+      const neutralControl = result.direction === 'NEUTRAL' && result.pattern.name !== 'Sem padrão confirmado';
+      if (!neutralControl && result.score < minimumScore) continue;
       const active = rows.find(row => row.status === 'ATIVO' && row.market === market && row.symbol === symbol && row.timeframe === timeframe && row.config === config);
       if (active && active.direction === result.direction && active.pattern === result.pattern.name) continue;
       if (active) {
@@ -216,13 +247,13 @@
   function renderHistory(rows = readHistory()) {
     const root = document.querySelector('#patternLabHistory');
     if (!root) return;
-    const active = rows.filter(x => x.status === 'ATIVO'), evaluated = rows.filter(x => x.status === 'AVALIADO');
+    const active = rows.filter(x => x.status === 'ATIVO'), evaluated = rows.filter(x => x.status === 'AVALIADO'), backtests = readBacktests();
     const targetCounts = Object.fromEntries(TARGETS.map(target => [target, rows.filter(row => row.targets?.[target]).length]));
     const recent = [...rows].sort((a, b) => b.entryTime - a.entryTime).slice(0, 12);
-    root.innerHTML = `<div class="pattern-lab-kpis"><span>Armazenados<b>${rows.length}</b></span><span>Em acompanhamento<b>${active.length}</b></span><span>Avaliados<b>${evaluated.length}</b></span>${TARGETS.slice(0, 3).map(target => `<span>Alvo ${target}%<b>${targetCounts[target]}</b></span>`).join('')}</div><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Ativo</th><th>TF</th><th>Configuração</th><th>Padrão</th><th>Direção</th><th>Score</th><th>Máx. favorável</th><th>Alvos</th><th>Status</th></tr></thead><tbody>${recent.length ? recent.map(row => `<tr><td>${row.symbol}</td><td>${row.timeframe}</td><td>${row.config === 'candidata' ? 'Candidata' : 'Controle'}</td><td>${row.pattern}</td><td>${row.direction === 'BUY' ? 'ALTA' : 'QUEDA'}</td><td>${row.score}</td><td>${pct(row.maxFavorablePct)}</td><td>${TARGETS.filter(target => row.targets?.[target]).map(target => `${target}%`).join(', ') || '—'}</td><td>${row.status === 'ATIVO' ? 'ACOMPANHANDO' : 'AVALIADO'}</td></tr>`).join('') : '<tr><td colspan="9">Nenhum sinal experimental armazenado.</td></tr>'}</tbody></table></div><p class="sub">Armazenamento local deste navegador • máximo ${HISTORY_LIMIT} episódios • sem uso do Supabase.</p>`;
+    root.innerHTML = `<div class="pattern-lab-kpis"><span>Episódios<b>${rows.length}</b></span><span>Em acompanhamento<b>${active.length}</b></span><span>Avaliados<b>${evaluated.length}</b></span><span>Backtests salvos<b>${backtests.length}</b></span>${TARGETS.slice(0, 2).map(target => `<span>Alvo ${target}%<b>${targetCounts[target]}</b></span>`).join('')}</div><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Ativo</th><th>TF</th><th>Configuração</th><th>Padrão</th><th>Direção</th><th>Score</th><th>Máx. movimento</th><th>Alvos</th><th>Status</th></tr></thead><tbody>${recent.length ? recent.map(row => `<tr><td>${row.symbol}</td><td>${row.timeframe}</td><td>${row.config === 'candidata' ? 'Candidata' : 'Controle'}</td><td>${row.pattern}</td><td>${row.direction === 'BUY' ? 'ALTA' : row.direction === 'SELL' ? 'QUEDA' : 'NEUTRO'}</td><td>${row.score}</td><td>${pct(row.maxFavorablePct)}</td><td>${TARGETS.filter(target => row.targets?.[target]).map(target => `${target}%`).join(', ') || '—'}</td><td>${row.status === 'ATIVO' ? 'ACOMPANHANDO' : 'AVALIADO'}</td></tr>`).join('') : '<tr><td colspan="9">Nenhum sinal experimental armazenado.</td></tr>'}</tbody></table></div><p class="sub">Armazenamento local deste navegador • máximo ${HISTORY_LIMIT} episódios e ${BACKTEST_LIMIT} backtests • sem uso do Supabase.</p>`;
   }
   function exportHistory() {
-    const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), signals: readHistory() }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), signals: readHistory(), backtests: readBacktests() }, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `ep-padroes-historico-${new Date().toISOString().slice(0, 10)}.json`;
@@ -248,6 +279,7 @@
       const candles = await fetchCandles(market, symbol, timeframe);
       if (candles.length < horizon + 80) throw Error(`Amostra insuficiente: ${candles.length} candles`);
       const current = evaluate(candles, 'atual', horizon, score), candidate = evaluate(candles, 'candidata', horizon, score);
+      storeBacktest(market, symbol, timeframe, horizon, score, candles, [current, candidate]);
       const history = followAndStore(candles, market, symbol, timeframe, horizon, score);
       output.innerHTML = `<p class="sub">${candles.length} candles. Alvos medidos pela máxima excursão favorável após o sinal; não representam lucro garantido.</p>${resultHtml(current)}${resultHtml(candidate)}`;
       status.textContent = `Concluído • ${symbol} • ${timeframe} • ${history.length} episódios armazenados localmente`;
@@ -262,6 +294,6 @@
     const style = document.createElement('style'); style.textContent = '.pattern-lab-controls{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) 150px;gap:10px;align-items:end}.pattern-lab-result{margin-top:14px;padding:12px;background:#091827;border:1px solid #29415e;border-radius:10px}.pattern-lab-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:10px 0}.pattern-lab-kpis span{padding:8px;background:#0d1a2b;border-radius:7px;font-size:11px}.pattern-lab-kpis b,.pattern-lab-kpis small{display:block;margin-top:3px}@media(max-width:900px){.pattern-lab-controls,.pattern-lab-kpis{grid-template-columns:repeat(2,1fr)}}'; document.head.appendChild(style);
     fillAssets(); renderHistory(); document.querySelector('#patternLabMarket').addEventListener('change', fillAssets); document.querySelector('#patternLabRun').addEventListener('click', run); document.querySelector('#patternLabExport').addEventListener('click', exportHistory);
   }
-  window.EPPatternIndicatorLab = { analyze, classifyPattern, evaluate, readHistory, followAndStore, configs: CONFIGS, targets: TARGETS };
+  window.EPPatternIndicatorLab = { analyze, classifyPattern, evaluate, readHistory, readBacktests, followAndStore, configs: CONFIGS, targets: TARGETS };
   setTimeout(init, 900);
 })();
