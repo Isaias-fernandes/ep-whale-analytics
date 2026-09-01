@@ -29,3 +29,12 @@ O teste mede a máxima excursão favorável após cada sinal nos alvos de 10%, 2
 
 Os resultados são observacionais. A máxima futura é usada somente como rótulo de validação e nunca participa da formação do sinal.
 
+## Histórico local
+
+- Ao clicar em `Executar e registrar`, os sinais elegíveis das duas configurações são guardados no `localStorage` do navegador.
+- Um episódio ativo é atualizado nas execuções posteriores do mesmo ativo e timeframe.
+- O histórico evita duplicar a mesma configuração, direção e padrão enquanto o episódio estiver ativo.
+- O episódio é avaliado ao completar o horizonte ou alcançar 50%.
+- São preservados no máximo 300 episódios no navegador.
+- O botão `Exportar JSON` permite criar uma cópia externa dos resultados.
+- Limpar dados do navegador também remove esse histórico; nesta versão não existe sincronização com Supabase.
