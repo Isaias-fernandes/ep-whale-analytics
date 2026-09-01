@@ -43,3 +43,12 @@ Os resultados são observacionais. A máxima futura é usada somente como rótul
 - Sinais direcionais com volume abaixo de 0,8x ficam limitados a 64 pontos; abaixo de 1,2x ficam limitados a 79 pontos.
 - Padrões neutros são armazenados como grupo de controle e medem o maior movimento absoluto posterior.
 - A exportação V2 inclui os episódios e até 50 resumos completos de backtest.
+
+## Validação walk-forward
+
+- Divide cronologicamente 1.000 candles em 70% para desenvolvimento e 30% para validação.
+- Impede sobreposição: após um sinal, o próximo só pode surgir depois de todo o horizonte avaliado.
+- Registra MFE, MAE, tempo até 10% e os alvos de 10% a 50%.
+- Classifica o regime como alta, baixa, lateral, compressão ou expansão usando apenas dados disponíveis no momento do sinal.
+- Usa os padrões neutros como controle de movimento absoluto.
+- Marca uma combinação como `PROMISSOR` somente com 20 sinais ou mais na validação, estabilidade, risco favorável e desempenho 25% superior ao controle neutro.
