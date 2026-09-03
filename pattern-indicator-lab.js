@@ -4,9 +4,23 @@
   const BACKTEST_KEY = 'ep_pattern_backtests_v1';
   const HISTORY_LIMIT = 300;
   const BACKTEST_LIMIT = 50;
+  const INITIAL_SAMPLE = 5;
+  const PROMISING_SAMPLE = 20;
+  const PROTECTED_PATTERNS = new Set([
+    'Compressão aguardando saída', 'Doji / indecisão', 'Estrela da manhã',
+    'Inside bar aguardando rompimento', 'Rompimento da máxima de 20 períodos',
+    'Bandeira de alta', 'Triângulo ascendente', 'Martelo', 'Topo duplo',
+    'Engolfo de alta', 'Triângulo simétrico aguardando saída',
+    'Estrela da noite', 'Engolfo de baixa'
+  ]);
+  const RETEST_PATTERNS = new Set([
+    'Fundo duplo', 'Rompimento da mínima de 20 períodos', 'Estrela cadente',
+    'Bandeira de baixa', 'Triângulo descendente'
+  ]);
   const CONFIGS = {
     atual: { label: 'Atual (controle)', rsi: 7, cci: 14, macd: [20, 30, 60] },
-    candidata: { label: 'Candidata', rsi: 14, cci: 20, macd: [12, 26, 9] }
+    candidata: { label: 'Candidata seletiva', rsi: 14, cci: 20, macd: [12, 26, 9] },
+    reteste: { label: 'Reteste sem resultado', rsi: 9, cci: 10, macd: [8, 21, 5] }
   };
   const TF = {
     M5: { interval: '5m', b3Range: '5d' },
@@ -105,7 +119,15 @@
     return { type: 'NEUTRO', direction: 'NEUTRAL', name: 'Sem padrão confirmado', confirmed: false, strength: 20 };
   }
   function analyze(candles, configName = 'candidata') {
-    const cfg = CONFIGS[configName] || CONFIGS.candidata, close = candles.map(x => x.c), pattern = classifyPattern(candles);
+    const close = candles.map(x => x.c), pattern = classifyPattern(candles);
+    // A candidata preserva exatamente os indicadores dos padrões que já
+    // alcançaram 10%. Somente os padrões sem resultado usam o perfil de reteste.
+    const profile = configName === 'candidata' && RETEST_PATTERNS.has(pattern.name)
+      ? 'reteste'
+      : configName === 'candidata' && PROTECTED_PATTERNS.has(pattern.name)
+        ? 'atual'
+        : configName;
+    const cfg = CONFIGS[profile] || CONFIGS.candidata;
     const rv = rsi(close, cfg.rsi), cv = cci(candles, cfg.cci), mv = macd(close, ...cfg.macd), last = candles.at(-1);
     const volumeRatio = last.v / (avg(candles.slice(-21, -1).map(x => x.v)) || last.v || 1), sign = pattern.direction === 'BUY' ? 1 : pattern.direction === 'SELL' ? -1 : 0;
     const aligned = sign && (sign > 0 ? rv >= 50 && cv > 0 && mv.histogram > 0 : rv <= 50 && cv < 0 && mv.histogram < 0);
@@ -114,7 +136,7 @@
     if (pattern.type === 'NEUTRO') score = Math.min(score, 49);
     else if (volumeRatio < .8) score = Math.min(score, 64);
     else if (volumeRatio < 1.2) score = Math.min(score, 79);
-    return { config: configName, pattern, direction: pattern.direction, score: clamp(Math.round(score)), rsi: rv, cci: cv, macd: mv, volumeRatio, momentumAligned: !!aligned, ignition: !!ignition };
+    return { config: configName, indicatorProfile: profile, pattern, direction: pattern.direction, score: clamp(Math.round(score)), rsi: rv, cci: cv, macd: mv, volumeRatio, momentumAligned: !!aligned, ignition: !!ignition };
   }
   function evaluate(candles, configName, horizon = 48, minimumScore = 70) {
     const targets = Object.fromEntries(TARGETS.map(x => [x, 0])), groups = new Map(), signals = [], warmup = 80;
@@ -172,7 +194,9 @@
         direction: result.direction, score: result.score, volumeRatio: result.volumeRatio,
         ...resultOutcome
       });
-      nextEligible = index + horizon;
+      // Evita sinais consecutivos sem tornar impossível formar uma amostra de
+      // validação dentro dos 300 candles finais.
+      nextEligible = index + Math.max(3, Math.floor(horizon / 4));
     }
     return rows;
   }
@@ -207,8 +231,9 @@
       const beatsControl = validation.rates[10] > neutralRate10 * 1.25;
       const riskOk = validation.avgMfe > Math.abs(validation.avgMae);
       let status = 'INCONCLUSIVO';
-      if (validation.n >= 20 && beatsControl && riskOk && stable) status = 'PROMISSOR';
-      else if (validation.n >= 20 && (!beatsControl || !riskOk)) status = 'REJEITAR';
+      if (validation.n >= PROMISING_SAMPLE && beatsControl && riskOk && stable) status = 'PROMISSOR';
+      else if (validation.n >= PROMISING_SAMPLE && (!beatsControl || !riskOk)) status = 'REJEITAR';
+      else if (validation.n >= INITIAL_SAMPLE && beatsControl && riskOk && stable) status = 'AMOSTRA_INICIAL';
       return { key: validation.key, train, validation, neutralRate10, stable, beatsControl, riskOk, status };
     }).sort((a, b) => (a.status === 'PROMISSOR' ? -1 : b.status === 'PROMISSOR' ? 1 : 0) || b.validation.rates[10] - a.validation.rates[10] || b.validation.n - a.validation.n);
     return { version: 1, config, split, trainSize: split, validationSize: candles.length - split, horizon, minimumScore, neutralRate10, trainSignals: trainRows.length, validationSignals: validationRows.length, comparisons };
@@ -233,11 +258,31 @@
   function readHistory() {
     try {
       const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      return dedupeHistory(parsed.map(row => {
+        // Recupera episódios que a versão anterior encerrou prematuramente
+        // apenas porque apareceu outro padrão antes do horizonte.
+        if (row.closeReason === 'MUDANÇA_DE_SINAL' && (row.observedBars || 0) < (row.horizon || 0)) {
+          const restored = { ...row, status: 'ATIVO' };
+          delete restored.closedAt;
+          delete restored.closeReason;
+          return restored;
+        }
+        return row;
+      }));
     } catch { return []; }
   }
+  function dedupeHistory(rows) {
+    const unique = new Map();
+    for (const row of rows) {
+      if (!row?.id) continue;
+      const previous = unique.get(row.id);
+      if (!previous || (row.observedBars || 0) >= (previous.observedBars || 0)) unique.set(row.id, row);
+    }
+    return [...unique.values()].sort((a, b) => (a.entryTime || 0) - (b.entryTime || 0));
+  }
   function writeHistory(rows) {
-    const limited = rows.slice(-HISTORY_LIMIT);
+    const limited = dedupeHistory(rows).slice(-HISTORY_LIMIT);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(limited));
     return limited;
   }
@@ -265,38 +310,35 @@
   function followAndStore(candles, market, symbol, timeframe, horizon, minimumScore) {
     const latest = candles.at(-1), rows = readHistory();
     for (const row of rows.filter(x => x.status === 'ATIVO' && x.market === market && x.symbol === symbol && x.timeframe === timeframe)) {
-      const future = candles.filter(x => x.t > row.entryTime);
+      const future = candles.filter(x => x.t > row.entryTime).slice(0, row.horizon);
       if (!future.length) continue;
       row.observedBars = future.length;
-      row.lastTime = latest.t;
-      row.lastPrice = latest.c;
+      row.lastTime = future.at(-1).t;
+      row.lastPrice = future.at(-1).c;
       const up = (Math.max(...future.map(x => x.h)) - row.entryPrice) / row.entryPrice * 100, down = (row.entryPrice - Math.min(...future.map(x => x.l))) / row.entryPrice * 100;
       const favorable = row.direction === 'BUY' ? up : row.direction === 'SELL' ? down : Math.max(up, down);
       const adverse = row.direction === 'BUY' ? -down : row.direction === 'SELL' ? -up : -Math.min(up, down);
       row.maxFavorablePct = Math.max(row.maxFavorablePct || 0, favorable);
       row.maxAdversePct = Math.min(row.maxAdversePct || 0, adverse);
       row.targets = Object.fromEntries(TARGETS.map(target => [target, row.maxFavorablePct >= target]));
-      if (row.observedBars >= row.horizon || row.targets[50]) {
+      if (row.observedBars >= row.horizon) {
         row.status = 'AVALIADO';
-        row.closedAt = latest.t;
-        row.closeReason = row.targets[50] ? 'ALVO_50' : 'HORIZONTE';
+        row.closedAt = future.at(-1).t;
+        row.closeReason = 'HORIZONTE';
       }
     }
-    for (const config of Object.keys(CONFIGS)) {
+    for (const config of ['atual', 'candidata']) {
       const result = analyze(candles, config);
       const neutralControl = result.direction === 'NEUTRAL' && result.pattern.name !== 'Sem padrão confirmado';
       if (!neutralControl && result.score < minimumScore) continue;
-      const active = rows.find(row => row.status === 'ATIVO' && row.market === market && row.symbol === symbol && row.timeframe === timeframe && row.config === config);
-      if (active && active.direction === result.direction && active.pattern === result.pattern.name) continue;
-      if (active) {
-        active.status = 'AVALIADO';
-        active.closedAt = latest.t;
-        active.closeReason = 'MUDANÇA_DE_SINAL';
-      }
+      const active = rows.find(row => row.status === 'ATIVO' && row.market === market && row.symbol === symbol && row.timeframe === timeframe && row.config === config && row.direction === result.direction && row.pattern === result.pattern.name);
+      if (active) continue;
       rows.push({
         id: `${market}-${symbol}-${timeframe}-${config}-${latest.t}`,
         version: 1, market, symbol, timeframe, config,
         configLabel: CONFIGS[config].label,
+        indicatorProfile: result.indicatorProfile,
+        signalClass: result.score >= minimumScore && result.direction !== 'NEUTRAL' ? 'CONFIRMADO' : 'OBSERVAÇÃO',
         direction: result.direction,
         patternType: result.pattern.type,
         pattern: result.pattern.name,
@@ -329,7 +371,7 @@
     const active = rows.filter(x => x.status === 'ATIVO'), evaluated = rows.filter(x => x.status === 'AVALIADO'), backtests = readBacktests();
     const targetCounts = Object.fromEntries(TARGETS.map(target => [target, rows.filter(row => row.targets?.[target]).length]));
     const recent = [...rows].sort((a, b) => b.entryTime - a.entryTime).slice(0, 12);
-    root.innerHTML = `<div class="pattern-lab-kpis"><span>Episódios<b>${rows.length}</b></span><span>Em acompanhamento<b>${active.length}</b></span><span>Avaliados<b>${evaluated.length}</b></span><span>Backtests salvos<b>${backtests.length}</b></span>${TARGETS.slice(0, 2).map(target => `<span>Alvo ${target}%<b>${targetCounts[target]}</b></span>`).join('')}</div><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Ativo</th><th>TF</th><th>Configuração</th><th>Padrão</th><th>Direção</th><th>Score</th><th>Máx. movimento</th><th>Alvos</th><th>Status</th></tr></thead><tbody>${recent.length ? recent.map(row => `<tr><td>${row.symbol}</td><td>${row.timeframe}</td><td>${row.config === 'candidata' ? 'Candidata' : 'Controle'}</td><td>${row.pattern}</td><td>${row.direction === 'BUY' ? 'ALTA' : row.direction === 'SELL' ? 'QUEDA' : 'NEUTRO'}</td><td>${row.score}</td><td>${pct(row.maxFavorablePct)}</td><td>${TARGETS.filter(target => row.targets?.[target]).map(target => `${target}%`).join(', ') || '—'}</td><td>${row.status === 'ATIVO' ? 'ACOMPANHANDO' : 'AVALIADO'}</td></tr>`).join('') : '<tr><td colspan="9">Nenhum sinal experimental armazenado.</td></tr>'}</tbody></table></div><p class="sub">Armazenamento local deste navegador • máximo ${HISTORY_LIMIT} episódios e ${BACKTEST_LIMIT} backtests • sem uso do Supabase.</p>`;
+    root.innerHTML = `<div class="pattern-lab-kpis"><span>Registros únicos<b>${rows.length}</b></span><span>Em acompanhamento<b>${active.length}</b></span><span>Avaliados<b>${evaluated.length}</b></span><span>Backtests salvos<b>${backtests.length}</b></span>${TARGETS.slice(0, 2).map(target => `<span>Alvo ${target}%<b>${targetCounts[target]}</b></span>`).join('')}</div><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Ativo</th><th>TF</th><th>Configuração</th><th>Padrão</th><th>Classe</th><th>Score</th><th>Máx. movimento</th><th>Alvos</th><th>Status</th></tr></thead><tbody>${recent.length ? recent.map(row => `<tr><td>${row.symbol}</td><td>${row.timeframe}</td><td>${row.config === 'candidata' ? 'Candidata seletiva' : 'Controle'}</td><td>${row.pattern}</td><td>${row.signalClass || (row.score >= row.minimumScore && row.direction !== 'NEUTRAL' ? 'CONFIRMADO' : 'OBSERVAÇÃO')}</td><td>${row.score}</td><td>${pct(row.maxFavorablePct)}</td><td>${TARGETS.filter(target => row.targets?.[target]).map(target => `${target}%`).join(', ') || '—'}</td><td>${row.status === 'ATIVO' ? 'ACOMPANHANDO' : 'AVALIADO'}</td></tr>`).join('') : '<tr><td colspan="9">Nenhum sinal experimental armazenado.</td></tr>'}</tbody></table></div><p class="sub">Armazenamento local deste navegador • IDs duplicados são eliminados • observações abaixo da pontuação mínima não são sinais confirmados • máximo ${HISTORY_LIMIT} registros e ${BACKTEST_LIMIT} backtests • sem uso do Supabase.</p>`;
   }
   function exportHistory() {
     const blob = new Blob([JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), signals: readHistory(), backtests: readBacktests() }, null, 2)], { type: 'application/json' });
@@ -344,7 +386,7 @@
     return `<section class="pattern-lab-result"><h4>${CONFIGS[result.config].label}</h4><div class="pattern-lab-kpis"><span>Sinais<b>${total}</b></span>${TARGETS.map(t => `<span>Alvo ${t}%<b>${result.targets[t]}</b><small>${total ? pct(result.targets[t] / total * 100) : '—'}</small></span>`).join('')}</div><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Padrão</th><th>Sinais</th><th>Favoráveis</th><th>Média</th>${TARGETS.map(t => `<th>≥${t}%</th>`).join('')}</tr></thead><tbody>${result.patterns.length ? result.patterns.map(g => `<tr><td>${g.pattern}</td><td>${g.signals}</td><td>${pct(g.favorable / g.signals * 100)}</td><td>${pct(g.average)}</td>${TARGETS.map(t => `<td>${g.targets[t]}</td>`).join('')}</tr>`).join('') : '<tr><td colspan="9">Nenhum sinal elegível nesta amostra.</td></tr>'}</tbody></table></div></section>`;
   }
   function walkForwardHtml(reports) {
-    return reports.map(report => `<section class="pattern-lab-result"><h4>WALK-FORWARD 70/30 — ${CONFIGS[report.config].label}</h4><p class="sub">Desenvolvimento: ${report.trainSize} candles/${report.trainSignals} sinais • Validação: ${report.validationSize} candles/${report.validationSignals} sinais • Controle neutro ≥10%: ${pct(report.neutralRate10)}</p><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Padrão + regime</th><th>Amostra validação</th><th>≥10% treino</th><th>≥10% validação</th><th>MFE médio</th><th>MAE médio</th><th>Volume</th><th>Candles até 10%</th><th>Conclusão</th></tr></thead><tbody>${report.comparisons.length ? report.comparisons.slice(0, 20).map(row => `<tr><td>${row.validation.pattern}<small> • ${row.validation.regime}</small></td><td>${row.validation.n}</td><td>${row.train ? pct(row.train.rates[10]) : '—'}</td><td>${pct(row.validation.rates[10])}</td><td>${pct(row.validation.avgMfe)}</td><td>${pct(row.validation.avgMae)}</td><td>${row.validation.avgVolume.toFixed(2)}x</td><td>${row.validation.avgBars10 == null ? '—' : row.validation.avgBars10.toFixed(1)}</td><td class="${row.status === 'PROMISSOR' ? 'buy' : row.status === 'REJEITAR' ? 'sell' : 'wait'}"><b>${row.status}</b></td></tr>`).join('') : '<tr><td colspan="9">Amostra insuficiente.</td></tr>'}</tbody></table></div><p class="sub">PROMISSOR exige ≥20 sinais na validação, superar o controle neutro em 25%, MFE maior que MAE e estabilidade em relação ao desenvolvimento.</p></section>`).join('');
+    return reports.map(report => `<section class="pattern-lab-result"><h4>WALK-FORWARD 70/30 — ${CONFIGS[report.config].label}</h4><p class="sub">Desenvolvimento: ${report.trainSize} candles/${report.trainSignals} sinais • Validação: ${report.validationSize} candles/${report.validationSignals} sinais • Controle neutro ≥10%: ${pct(report.neutralRate10)}</p><div class="bt-table-wrap"><table class="bt-table"><thead><tr><th>Padrão + regime</th><th>Amostra validação</th><th>≥10% treino</th><th>≥10% validação</th><th>MFE médio</th><th>MAE médio</th><th>Volume</th><th>Candles até 10%</th><th>Conclusão</th></tr></thead><tbody>${report.comparisons.length ? report.comparisons.slice(0, 20).map(row => `<tr><td>${row.validation.pattern}<small> • ${row.validation.regime}</small></td><td>${row.validation.n}</td><td>${row.train ? pct(row.train.rates[10]) : '—'}</td><td>${pct(row.validation.rates[10])}</td><td>${pct(row.validation.avgMfe)}</td><td>${pct(row.validation.avgMae)}</td><td>${row.validation.avgVolume.toFixed(2)}x</td><td>${row.validation.avgBars10 == null ? '—' : row.validation.avgBars10.toFixed(1)}</td><td class="${row.status === 'PROMISSOR' ? 'buy' : row.status === 'REJEITAR' ? 'sell' : 'wait'}"><b>${row.status}</b></td></tr>`).join('') : '<tr><td colspan="9">Amostra insuficiente.</td></tr>'}</tbody></table></div><p class="sub">AMOSTRA_INICIAL exige ≥${INITIAL_SAMPLE} ocorrências e serve apenas para acompanhamento. PROMISSOR exige ≥${PROMISING_SAMPLE}, superar o controle neutro em 25%, MFE maior que MAE e estabilidade.</p></section>`).join('');
   }
   function fillAssets() {
     const market = document.querySelector('#patternLabMarket')?.value || 'crypto', select = document.querySelector('#patternLabAsset');
@@ -372,7 +414,7 @@
     if (document.querySelector('#patternIndicatorLab')) return;
     const anchor = document.querySelector('#decisionCenter')?.closest('section.card'); if (!anchor) return;
     const section = document.createElement('section'); section.id = 'patternIndicatorLab'; section.className = 'card';
-    section.innerHTML = `<div class="section-head"><h2>TESTE DE INDICADORES + PADRÕES — ALVOS 10% A 50%</h2><span class="signal-badge warn">EXPERIMENTAL • NÃO ALTERA OS 5 MOTORES</span></div><p class="sub">Compara o controle atual com RSI 14, CCI 20 e MACD 12/26/9. Os resultados ficam somente neste navegador.</p><div class="pattern-lab-controls"><label>Mercado<select id="patternLabMarket"><option value="crypto">Cripto</option><option value="b3">B3</option></select></label><label>Ativo<select id="patternLabAsset"></select></label><label>Período<select id="patternLabTf"><option>M5</option><option selected>M15</option><option>M30</option><option>H1</option></select></label><label>Horizonte<select id="patternLabHorizon"><option value="24">24 candles</option><option value="48" selected>48 candles</option><option value="96">96 candles</option></select></label><label>Pontuação mínima<select id="patternLabScore"><option>60</option><option selected>70</option><option>80</option></select></label><button id="patternLabRun">Executar e registrar</button></div><div id="patternLabStatus" class="sub">Aguardando execução manual.</div><div id="patternLabOutput"></div><section class="pattern-lab-result"><div class="section-head"><h3>HISTÓRICO EXPERIMENTAL LOCAL</h3><button id="patternLabExport" class="secondary" style="width:auto">Exportar JSON</button></div><div id="patternLabHistory"></div></section>`;
+    section.innerHTML = `<div class="section-head"><h2>TESTE DE INDICADORES + PADRÕES — ALVOS 10% A 50%</h2><span class="signal-badge warn">EXPERIMENTAL • NÃO ALTERA OS 5 MOTORES</span></div><p class="sub">A candidata seletiva mantém RSI 7, CCI 14 e MACD 20/30/60 nos padrões que já atingiram 10%. Somente padrões ainda sem resultado testam RSI 9, CCI 10 e MACD 8/21/5. Observação não significa sinal confirmado.</p><div class="pattern-lab-controls"><label>Mercado<select id="patternLabMarket"><option value="crypto">Cripto</option><option value="b3">B3</option></select></label><label>Ativo<select id="patternLabAsset"></select></label><label>Período<select id="patternLabTf"><option>M5</option><option selected>M15</option><option>M30</option><option>H1</option></select></label><label>Horizonte<select id="patternLabHorizon"><option value="24">24 candles</option><option value="48" selected>48 candles</option><option value="96">96 candles</option></select></label><label>Pontuação mínima<select id="patternLabScore"><option>60</option><option selected>70</option><option>80</option></select></label><button id="patternLabRun">Executar e registrar</button></div><div id="patternLabStatus" class="sub">Aguardando execução manual.</div><div id="patternLabOutput"></div><section class="pattern-lab-result"><div class="section-head"><h3>HISTÓRICO EXPERIMENTAL LOCAL</h3><button id="patternLabExport" class="secondary" style="width:auto">Exportar JSON</button></div><div id="patternLabHistory"></div></section>`;
     anchor.insertAdjacentElement('beforebegin', section);
     const style = document.createElement('style'); style.textContent = '.pattern-lab-controls{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) 150px;gap:10px;align-items:end}.pattern-lab-result{margin-top:14px;padding:12px;background:#091827;border:1px solid #29415e;border-radius:10px}.pattern-lab-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:10px 0}.pattern-lab-kpis span{padding:8px;background:#0d1a2b;border-radius:7px;font-size:11px}.pattern-lab-kpis b,.pattern-lab-kpis small{display:block;margin-top:3px}@media(max-width:900px){.pattern-lab-controls,.pattern-lab-kpis{grid-template-columns:repeat(2,1fr)}}'; document.head.appendChild(style);
     fillAssets(); renderHistory(); document.querySelector('#patternLabMarket').addEventListener('change', fillAssets); document.querySelector('#patternLabRun').addEventListener('click', run); document.querySelector('#patternLabExport').addEventListener('click', exportHistory);
