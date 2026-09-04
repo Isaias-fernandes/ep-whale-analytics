@@ -1,6 +1,6 @@
 (()=>{
 const $=s=>document.querySelector(s),REFRESH_MS=60*60*1000,COOLDOWN_MS=5*60*1000;
-const PROXY_URL='https://iayxjarkeefbzjbpfurl.supabase.co/functions/v1/gnews-proxy';
+const PROXY_URL='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/gnews-proxy';
 const BLOCK_MAX_AGE_MIN=180,ATTENTION_MAX_AGE_MIN=360,DISPLAY_MAX_AGE_MIN=1440;
 const CRYPTO={BTCUSDT:['Bitcoin','BTC'],ETHUSDT:['Ethereum','ETH'],SOLUSDT:['Solana','SOL'],BNBUSDT:['BNB'],XRPUSDT:['XRP','Ripple'],ADAUSDT:['Cardano','ADA'],DOGEUSDT:['Dogecoin','DOGE'],AVAXUSDT:['Avalanche','AVAX'],LINKUSDT:['Chainlink','LINK'],DOTUSDT:['Polkadot','DOT'],LTCUSDT:['Litecoin','LTC'],BCHUSDT:['Bitcoin Cash','BCH'],TRXUSDT:['Tron','TRX'],UNIUSDT:['Uniswap','UNI'],AAVEUSDT:['Aave','AAVE'],SUIUSDT:['Sui'],NEARUSDT:['Near Protocol','NEAR'],APTUSDT:['Aptos','APT'],ARBUSDT:['Arbitrum','ARB'],OPUSDT:['Optimism','OP']};
 const B3={PETR4:['Petrobras','PETR4'],VALE3:['Vale','VALE3'],ITUB4:['Itaú','ITUB4'],BBAS3:['Banco do Brasil','BBAS3'],BBDC4:['Bradesco','BBDC4'],B3SA3:['B3SA3'],PRIO3:['PRIO','PRIO3'],WEGE3:['WEG','WEGE3'],EMBR3:['Embraer','EMBR3'],RENT3:['Localiza','RENT3'],SUZB3:['Suzano','SUZB3'],ELET3:['Eletrobras','ELET3'],EQTL3:['Equatorial','EQTL3'],RADL3:['RD Saúde','RADL3'],GGBR4:['Gerdau','GGBR4'],CSNA3:['CSN','CSNA3'],MGLU3:['Magazine Luiza','Magalu','MGLU3'],HAPV3:['Hapvida','HAPV3'],BHIA3:['Casas Bahia','BHIA3'],ABEV3:['Ambev','ABEV3']};
