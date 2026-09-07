@@ -1,0 +1,26 @@
+/*
+ * EVOLUCAO DE PRECO POR CONFLUENCIA — camada SOMENTE OBSERVACIONAL.
+ * Nao altera EPDecision, EPConfluence, regras, score ou qualquer um dos 5 motores.
+ */
+(()=>{
+  const KEY='ep_motor_price_evolution_v1', LIMIT=120;
+  const $=s=>document.querySelector(s), now=()=>Date.now();
+  let db=load();
+  function load(){try{let x=JSON.parse(localStorage.getItem(KEY)||'null');return x&&typeof x==='object'?{open:x.open||{},closed:Array.isArray(x.closed)?x.closed:[]}:{open:{},closed:[]}}catch{return{open:{},closed:[]}}}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch{}}
+  function id(asset,market){return market+':'+(asset.sym||asset.ticker||asset.key||'unknown')}
+  function name(asset){return asset.sym||asset.ticker||asset.key||'unknown'}
+  function price(asset){let p=+(asset.price??asset.regularMarketPrice??asset.candles?.at?.(-1)?.c);return Number.isFinite(p)&&p>0?p:NaN}
+  function pct(dir,p0,p1){if(!Number.isFinite(+p0)||!Number.isFinite(+p1)||!+p0)return NaN;let r=(+p1-+p0)/+p0*100;return dir==='SELL'?-r:r}
+  function fp(v){if(!Number.isFinite(+v))return'—';let n=+v,d=n<1?6:n<10?4:2;return n.toLocaleString('pt-BR',{maximumFractionDigits:d})}
+  function pc(v){if(!Number.isFinite(+v))return'—';v=+v;return`${v>=0?'+':''}${v.toFixed(2).replace('.',',')}%`}
+  function stage(e,n){let s=e.stages?.[n];return s?`<b>${fp(s.price)}</b><small>${n===1?'INÍCIO':pc(e.dir,e.startPrice,s.price)}</small>`:'—'}
+  function start(asset,market,d,n,p,ts){let k=id(asset,market),e={id:`${k}:${ts}`,market,asset:name(asset),dir:d.dir,startTs:ts,startPrice:p,startMotors:n,currentPrice:p,currentMotors:n,peakMotors:n,stages:{},events:[]};e.stages[n]={price:p,ts};e.events.push({ts,motors:n,price:p});db.open[k]=e}
+  function close(k,e,p,n,ts,reason){e.currentPrice=p;e.currentMotors=n;e.endTs=ts;e.finalPrice=p;e.finalReturn=pct(e.dir,e.startPrice,p);e.reason=reason;delete db.open[k];db.closed.unshift(e);db.closed=db.closed.slice(0,LIMIT)}
+  function update(asset,market){let d=window.EPDecision?.calc?.(asset,market);if(!d)return;let n=Math.max(0,Math.min(5,+d.motorAgree||0)),p=price(asset);if(!Number.isFinite(p))return;let k=id(asset,market),e=db.open[k],ts=now(),direction=d.dir==='BUY'||d.dir==='SELL';if(!e){if(n>=1&&direction)start(asset,market,d,n,p,ts);return}if(direction&&n>=1&&d.dir!==e.dir){close(k,e,p,n,ts,'virada de direção');start(asset,market,d,n,p,ts);return}e.currentPrice=p;e.currentMotors=n;e.peakMotors=Math.max(e.peakMotors||0,n);if(n>=1&&!e.stages[n])e.stages[n]={price:p,ts};let prev=e.events.at(-1);if(!prev||prev.motors!==n){e.events.push({ts,motors:n,price:p});e.events=e.events.slice(-30)}if(n===0||!direction)close(k,e,p,n,ts,'fim da confluência')}
+  function scan(){window.CryptoApp?.getData?.()?.forEach?.(x=>update(x,'crypto'));window.B3App?.getData?.()?.forEach?.(x=>update(x,'b3'));save();render()}
+  function ensure(){if($('#motorPriceEvolution'))return;let anchor=$('#signalStats')?.closest('section.card')||$('#decisionCenter')?.closest('section.card');if(!anchor)return;let s=document.createElement('section');s.className='card';s.innerHTML='<h2>EVOLUÇÃO DE PREÇO POR CONFLUÊNCIA — 1M → 5M</h2><p class="sub"><b>Somente observacional.</b> Registra o primeiro preço visto em cada nível de confluência sem alterar a natureza, score ou decisão dos 5 motores.</p><div id="motorPriceEvolution"></div>';anchor.insertAdjacentElement('afterend',s)}
+  function row(e){let cur=pct(e.dir,e.startPrice,e.currentPrice);return`<tr><td><b>${e.asset}</b><small>${e.market==='crypto'?'CRIPTO':'B3'} • ${e.dir==='BUY'?'COMPRA':'VENDA'}</small></td><td>${stage(e,1)}</td><td>${stage(e,2)}</td><td>${stage(e,3)}</td><td>${stage(e,4)}</td><td>${stage(e,5)}</td><td><b>${e.peakMotors}/5</b></td><td><b>${e.currentMotors}/5</b><small>${fp(e.currentPrice)}</small></td><td class="${cur>=0?'pos':'neg'}"><b>${pc(cur)}</b></td></tr>`}
+  function render(){ensure();let root=$('#motorPriceEvolution');if(!root)return;let open=Object.values(db.open).sort((a,b)=>(b.peakMotors-a.peakMotors)||(b.startTs-a.startTs)),recent=db.closed.slice(0,15),list=[...open,...recent].slice(0,30);root.innerHTML=`<div class="price-track-summary"><span><b>1M+ em acompanhamento:</b> ${open.length}</span><span><b>Episódios guardados:</b> ${db.closed.length}</span><span><b>Regra:</b> primeiro preço de cada estágio</span></div><div class="price-track-wrap"><table class="price-track"><thead><tr><th>Ativo</th><th>1 Motor</th><th>2 Motores</th><th>3 Motores</th><th>4 Motores</th><th>5 Motores</th><th>Pico</th><th>Atual</th><th>Var. desde 1M</th></tr></thead><tbody>${list.length?list.map(row).join(''):'<tr><td colspan="9">Aguardando o primeiro ativo atingir 1 motor.</td></tr>'}</tbody></table></div><div class="price-track-note">Cada coluna congela o preço da primeira vez que o episódio atinge aquele número de motores. A variação é calculada na direção do sinal desde o preço de 1M. Este painel não participa da decisão.</div>`}
+  window.addEventListener('crypto-data-updated',scan);window.addEventListener('b3-data-updated',scan);window.addEventListener('mtf-updated',scan);setTimeout(scan,2600);setInterval(()=>{if(!document.hidden)scan()},10000);window.EPMotorPriceEvolution={scan,get:()=>db};
+})();
