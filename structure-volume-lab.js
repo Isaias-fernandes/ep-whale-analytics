@@ -1,116 +1,127 @@
-/* Independent, manual research lab. Never writes official signals or remote data. */
-(() => {
+/*
+ * EVOLUÇÃO DE PREÇO POR CONFLUÊNCIA — 1M → 5M
+ * CAMADA SOMENTE OBSERVACIONAL.
+ * Não altera EPDecision, EPConfluence, score, sinais ou qualquer um dos 5 motores.
+ * Este arquivo substitui visualmente o antigo Experimento separado — Caixote / Bandeira / OBV.
+ */
+(()=>{
   'use strict';
-  const VERSION = 'box-flag-obv-v1';
-  const KEY = 'ep_structure_volume_lab_v1';
-  const TF = { '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000 };
-  const avg = a => a.reduce((s, v) => s + v, 0) / (a.length || 1);
-  function rsi(c) {
-    let g = 0, l = 0;
-    for (let i = 1; i <= 14; i++) { const d = c[i].c - c[i - 1].c; g += Math.max(d, 0); l += Math.max(-d, 0); }
-    g /= 14; l /= 14;
-    for (let i = 15; i < c.length; i++) { const d = c[i].c - c[i - 1].c; g = (g * 13 + Math.max(d, 0)) / 14; l = (l * 13 + Math.max(-d, 0)) / 14; }
-    return !g && !l ? 50 : !l ? 100 : 100 - 100 / (1 + g / l);
+  const KEY='ep_motor_price_evolution_v1', LIMIT=120;
+  const $=s=>document.querySelector(s), now=()=>Date.now();
+  let db=load();
+
+  function load(){
+    try{
+      const x=JSON.parse(localStorage.getItem(KEY)||'null');
+      return x&&typeof x==='object'?{open:x.open||{},closed:Array.isArray(x.closed)?x.closed:[]}:{open:{},closed:[]};
+    }catch{return{open:{},closed:[]}}
   }
-  function obv(c) {
-    const out = [0];
-    for (let i = 1; i < c.length; i++) out.push(out[i - 1] + Math.sign(c[i].c - c[i - 1].c) * c[i].v);
-    return out;
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch{}}
+  function id(asset,market){return market+':'+(asset.sym||asset.ticker||asset.key||'unknown')}
+  function name(asset){return asset.sym||asset.ticker||asset.key||'unknown'}
+  function price(asset){
+    const p=+(asset?.livePrice??asset?.price??asset?.regularMarketPrice??asset?.candles?.at?.(-1)?.c);
+    return Number.isFinite(p)&&p>0?p:NaN;
   }
-  function reversal(b, a) {
-    const body = Math.abs(b.c - b.o), range = b.h - b.l;
-    return b.c > b.o && ((range > 0 && body > 0 && Math.min(b.o, b.c) - b.l >= 2 * body && b.h - Math.max(b.o, b.c) <= Math.max(body, range * .12)) || (a.c < a.o && b.o <= a.c && b.c >= a.o));
+  function pct(dir,p0,p1){
+    if(!Number.isFinite(+p0)||!Number.isFinite(+p1)||!+p0)return NaN;
+    let r=(+p1-+p0)/+p0*100;
+    return dir==='SELL'?-r:r;
   }
-  function detect(c, tf) {
-    if (c.length < 45) return [];
-    const b = c.at(-1), prev = c.slice(-21, -1), meanVolume = avg(prev.map(x => x.v));
-    const rv = rsi(c), o = obv(c), rising = o.at(-1) > o.at(-6);
-    if (rv > 85 || !rising || meanVolume <= 0) return [];
-    const result = [], high = Math.max(...prev.map(x => x.h)), low = Math.min(...prev.map(x => x.l));
-    if (['15m', '30m', '1h'].includes(tf) && (high - low) / low <= .03 && b.c > high && b.v >= 3 * meanVolume)
-      result.push({ pattern: 'Caixote + volume 3x + OBV', rsi: rv, volumeRatio: b.v / meanVolume, level: high });
-    if (['5m', '15m'].includes(tf)) {
-      // All breakout/retest decisions use only information available at this candle.
-      for (let distance = 1; distance <= 4; distance++) {
-        const j = c.length - 1 - distance, flag = c.slice(j - 8, j), pole = c.slice(j - 16, j - 8);
-        const resistance = Math.max(...flag.map(x => x.h)), floor = Math.min(...flag.map(x => x.l));
-        const impulse = pole.at(-1).c / pole[0].o - 1;
-        const breakout = c[j], baseVolume = avg(c.slice(j - 20, j).map(x => x.v));
-        const anchored = c.slice(j - 16), volume = anchored.reduce((s, x) => s + x.v, 0);
-        const avwap = volume ? anchored.reduce((s, x) => s + (x.h + x.l + x.c) / 3 * x.v, 0) / volume : Infinity;
-        if (impulse >= .10 && (resistance - floor) / floor <= impulse * .5 && flag.at(-1).c <= flag[0].c && avg(flag.map(x => x.v)) < avg(pole.map(x => x.v)) && baseVolume > 0 && breakout.c > resistance && breakout.v >= 2 * baseVolume && c.slice(j + 1).every(x => x.c >= resistance * .995) && b.l <= resistance * 1.005 && b.c >= resistance && b.c > avwap && reversal(b, c.at(-2))) {
-          result.push({ pattern: 'Bandeira + reteste + OBV/VWAP ancorada', rsi: rv, volumeRatio: breakout.v / baseVolume, level: resistance });
-          break;
-        }
-      }
-    }
-    return result;
+  function fp(v){
+    if(!Number.isFinite(+v))return'—';
+    const n=+v,d=n<1?6:n<10?4:2;
+    return n.toLocaleString('pt-BR',{maximumFractionDigits:d});
   }
-  function evaluate(input, tf, now = Date.now(), horizon = 48) {
-    if (!TF[tf]) throw Error('Selecione M5, M15, M30 ou H1 no painel Cripto.');
-    const c = input.filter(x => x.t + TF[tf] <= now);
-    if (c.length < 46) throw Error('Histórico insuficiente: mínimo de 46 candles fechados.');
-    c.forEach((x, i) => {
-      if (![x.t, x.o, x.h, x.l, x.c, x.v].every(Number.isFinite) || x.o <= 0 || x.c <= 0 || x.l <= 0 || x.v < 0 || x.h < Math.max(x.o, x.c) || x.l > Math.min(x.o, x.c) || (i && x.t - c[i - 1].t !== TF[tf])) throw Error('Candles inválidos, incompletos ou de outro intervalo.');
-    });
-    const rows = [], cooldown = new Map();
-    for (let i = 44; i < c.length - 1; i++) {
-      for (const signal of detect(c.slice(0, i + 1), tf)) {
-        if (i <= (cooldown.get(signal.pattern) ?? -1)) continue;
-        const future = c.slice(i + 1, i + 1 + horizon), entry = future[0].o;
-        rows.push({ ...signal, time: c[i].t, entryTime: future[0].t, entry, bars: future.length, horizon, status: future.length === horizon ? 'AVALIADO' : 'PARCIAL', mfe: Math.max(0, (Math.max(...future.map(x => x.h)) / entry - 1) * 100), mae: Math.min(0, (Math.min(...future.map(x => x.l)) / entry - 1) * 100) });
-        cooldown.set(signal.pattern, i + horizon);
-      }
-    }
-    return { version: VERSION, timeframe: tf, candles: c.length, horizon, rows };
+  function pc(v){
+    if(!Number.isFinite(+v))return'—';
+    v=+v;return`${v>=0?'+':''}${v.toFixed(2).replace('.',',')}%`;
   }
-  const api = { detect, evaluate, obv, rsi, reversal, VERSION };
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof window === 'undefined') return;
-  window.EPStructureVolumeLab = api;
-  function mount() {
-    const host = document.querySelector('main');
-    if (!host || document.getElementById('structureVolumeLab')) return;
-    const panel = document.createElement('details'); panel.id = 'structureVolumeLab'; panel.className = 'card';
-    panel.innerHTML = '<summary>Experimento separado — Caixote / Bandeira / OBV</summary><p>Cripto • usa o ativo e intervalo carregados no painel • 48 candles de avaliação • RSI 14 ≤85 • sem ordens reais.</p><button type="button" data-run>Testar candles carregados</button> <button type="button" data-export>Exportar este experimento</button><p data-result>Aguardando teste manual. Nenhum motor ou histórico existente é alterado.</p><small>Resultados brutos, sem taxas ou slippage. Amostra curta: não comprova previsão de 10–50%. Histórico só neste navegador, sem expiração automática. Exporte uma cópia para preservar os dados.</small>';
-    const choice = document.createElement('select');
-    choice.innerHTML = '<option value="loaded">Intervalo carregado</option><option value="30m">M30 agregado de M15</option>';
-    choice.setAttribute('aria-label', 'Intervalo do novo experimento');
-    panel.querySelector('[data-run]').before(choice);
-    const central = document.getElementById('decisionCenter')?.closest('section');
-    if (central) central.before(panel); else host.prepend(panel);
-    const output = panel.querySelector('[data-result]');
-    function read() { const data = JSON.parse(localStorage.getItem(KEY) || '[]'); if (!Array.isArray(data)) throw Error('Histórico inválido; não foi sobrescrito.'); return data; }
-    panel.querySelector('[data-run]').onclick = () => {
-      try {
-        const tf = document.querySelector('#tf')?.value, symbol = document.querySelector('#pair')?.value;
-        const asset = window.CryptoApp?.getData()?.get(symbol);
-        if (!asset?.candles) throw Error('Carregue o ativo no painel Cripto primeiro.');
-        let candles = asset.candles, experimentTf = tf;
-        if (choice.value === '30m') {
-          if (tf !== '15m') throw Error('Para M30, carregue M15 no painel Cripto.');
-          const aggregated = [];
-          for (let i = 0; i < candles.length - 1; i++) {
-            const a = candles[i], b = candles[i + 1];
-            if (a.t % TF['30m'] === 0 && b.t - a.t === TF['15m']) aggregated.push({ t: a.t, o: a.o, h: Math.max(a.h, b.h), l: Math.min(a.l, b.l), c: b.c, v: a.v + b.v });
-          }
-          candles = aggregated; experimentTf = '30m';
-        }
-        const report = { ...evaluate(candles, experimentTf), symbol, testedAt: new Date().toISOString() };
-        const key = `${VERSION}|${symbol}|${experimentTf}|${candles.at(-1).t}`;
-        const history = read(); const old = history.findIndex(x => x.key === key);
-        if (old >= 0) history[old] = { ...report, key }; else history.push({ ...report, key });
-        localStorage.setItem(KEY, JSON.stringify(history));
-        const done = report.rows.filter(x => x.status === 'AVALIADO');
-        output.textContent = `${symbol} ${experimentTf} • ${report.candles} candles • ${done.length} avaliados • ${report.rows.length - done.length} parciais • ` + [10, 20, 30, 50].map(t => `≥${t}%: ${done.filter(x => x.mfe >= t).length}`).join(' | ') + ` • ${history.length} testes salvos localmente.`;
-      } catch (e) { output.textContent = `Teste não salvo: ${e.message}`; }
+  function elapsed(ts){
+    if(!ts)return'—';
+    let s=Math.max(0,Math.floor((now()-ts)/1000)),m=Math.floor(s/60),h=Math.floor(m/60);
+    return h?`${h}h ${m%60}m`:`${m}m ${s%60}s`;
+  }
+  function stage(e,n){
+    const s=e.stages?.[n];
+    if(!s)return'<span class="mpe-empty">—</span>';
+    const varTxt=n===1?'INÍCIO':pc(pct(e.dir,e.startPrice,s.price));
+    return`<b>${fp(s.price)}</b><small>${varTxt}</small>`;
+  }
+  function start(asset,market,d,n,p,ts){
+    const k=id(asset,market),e={
+      id:`${k}:${ts}`,market,asset:name(asset),dir:d.dir,startTs:ts,startPrice:p,startMotors:n,
+      currentPrice:p,currentMotors:n,peakMotors:n,stages:{},events:[]
     };
-    panel.querySelector('[data-export]').onclick = () => {
-      try {
-        const url = URL.createObjectURL(new Blob([JSON.stringify({ version: VERSION, exportedAt: new Date().toISOString(), tests: read() }, null, 2)], { type: 'application/json' }));
-        const a = document.createElement('a'); a.href = url; a.download = 'ep-caixote-bandeira-obv.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } catch (e) { output.textContent = e.message; }
-    };
+    e.stages[n]={price:p,ts};
+    e.events.push({ts,motors:n,price:p,score:d.score||0});
+    db.open[k]=e;
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+  function close(k,e,p,n,ts,reason){
+    e.currentPrice=p;e.currentMotors=n;e.endTs=ts;e.finalPrice=p;
+    e.finalReturn=pct(e.dir,e.startPrice,p);e.reason=reason;
+    delete db.open[k];db.closed.unshift(e);db.closed=db.closed.slice(0,LIMIT);
+  }
+  function update(asset,market){
+    const d=window.EPDecision?.calc?.(asset,market);
+    if(!d)return;
+    const n=Math.max(0,Math.min(5,+d.motorAgree||0)),p=price(asset),k=id(asset,market),ts=now();
+    if(!Number.isFinite(p))return;
+    let e=db.open[k];
+    const directional=d.dir==='BUY'||d.dir==='SELL';
+    if(!e){if(n>=1&&directional)start(asset,market,d,n,p,ts);return}
+    if(n>=1&&directional&&d.dir!==e.dir){close(k,e,p,n,ts,'virada de direção');start(asset,market,d,n,p,ts);return}
+    e.currentPrice=p;e.currentMotors=n;e.peakMotors=Math.max(e.peakMotors||0,n);
+    if(n>=1&&!e.stages[n])e.stages[n]={price:p,ts};
+    const prev=e.events?.at?.(-1);
+    if(!prev||prev.motors!==n){e.events=e.events||[];e.events.push({ts,motors:n,price:p,score:d.score||0});e.events=e.events.slice(-30)}
+    if(n===0||!directional)close(k,e,p,n,ts,'fim da confluência');
+  }
+  function ensureCss(){
+    if($('#mpeStyle'))return;
+    const st=document.createElement('style');st.id='mpeStyle';st.textContent=`
+      #motorPriceEvolutionSection{border:1px solid #274e73;background:linear-gradient(180deg,#0a1c2d,#081522);box-shadow:0 0 0 1px #0b2a43 inset}
+      .mpe-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+      .mpe-badge{border:1px solid #2a8b67;color:#72e6b5;background:#0b3028;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:700}
+      .mpe-summary{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+      .mpe-summary span{background:#091827;border:1px solid #29415e;border-radius:8px;padding:7px 9px}
+      .mpe-wrap{overflow:auto}
+      .mpe-table{width:100%;min-width:1200px;border-collapse:collapse}
+      .mpe-table th,.mpe-table td{padding:9px 8px;border-bottom:1px solid #20334a;text-align:left;vertical-align:top}
+      .mpe-table th{background:#091827;color:#bdd4eb;position:sticky;top:0}
+      .mpe-table small{display:block;color:#8fa7c2;margin-top:3px}
+      .mpe-pos{color:#67e8a5}.mpe-neg{color:#ff8f9a}.mpe-empty{color:#61778b}
+      .mpe-note{margin-top:9px;color:#9db0c5;font-size:12px}
+    `;document.head.appendChild(st);
+  }
+  function ensure(){
+    ensureCss();
+    if($('#motorPriceEvolutionSection'))return;
+    const host=document.querySelector('main');if(!host)return;
+    const sec=document.createElement('section');sec.className='card';sec.id='motorPriceEvolutionSection';
+    sec.innerHTML=`<div class="mpe-head"><div><h2>EVOLUÇÃO DE PREÇO POR CONFLUÊNCIA — 1M → 5M</h2><p class="sub"><b>Somente observacional.</b> Registra o primeiro preço visto quando o ativo atinge 1, 2, 3, 4 e 5 motores. Não altera score, decisão, confirmação ou a natureza dos 5 motores.</p></div><span class="mpe-badge">5 MOTORES INTACTOS</span></div><div id="motorPriceEvolution">Aguardando dados...</div>`;
+    const central=$('#decisionCenter')?.closest('section.card');
+    if(central)central.before(sec);else host.prepend(sec);
+  }
+  function row(e){
+    const cur=pct(e.dir,e.startPrice,e.currentPrice),closed=!!e.endTs;
+    return`<tr><td><b>${e.asset}</b><small>${e.market==='crypto'?'CRIPTO':'B3'} • ${e.dir==='BUY'?'COMPRA':'VENDA'}${closed?' • ENCERRADO':''}</small></td><td>${stage(e,1)}</td><td>${stage(e,2)}</td><td>${stage(e,3)}</td><td>${stage(e,4)}</td><td>${stage(e,5)}</td><td><b>${e.peakMotors}/5</b></td><td><b>${e.currentMotors}/5</b><small>${fp(e.currentPrice)}</small></td><td class="${cur>=0?'mpe-pos':'mpe-neg'}"><b>${pc(cur)}</b></td><td>${elapsed(e.startTs)}</td></tr>`;
+  }
+  function render(){
+    ensure();const root=$('#motorPriceEvolution');if(!root)return;
+    const open=Object.values(db.open).sort((a,b)=>(b.peakMotors-a.peakMotors)||(b.startTs-a.startTs));
+    const recent=db.closed.slice(0,15),list=[...open,...recent].slice(0,30);
+    root.innerHTML=`<div class="mpe-summary"><span><b>1M+ em acompanhamento:</b> ${open.length}</span><span><b>Episódios encerrados:</b> ${db.closed.length}</span><span><b>Regra:</b> congela o primeiro preço de cada estágio</span></div><div class="mpe-wrap"><table class="mpe-table"><thead><tr><th>Ativo</th><th>1 Motor</th><th>2 Motores</th><th>3 Motores</th><th>4 Motores</th><th>5 Motores</th><th>Pico</th><th>Atual</th><th>Var. desde 1M</th><th>Tempo</th></tr></thead><tbody>${list.length?list.map(row).join(''):'<tr><td colspan="10">Aguardando o primeiro ativo atingir 1 motor na mesma direção do sinal.</td></tr>'}</tbody></table></div><div class="mpe-note">A variação é calculada na direção do sinal desde o preço de 1M. Cada estágio registra somente a primeira passagem. Esta camada observa os motores; não participa da decisão.</div>`;
+  }
+  function scan(){
+    window.CryptoApp?.getData?.()?.forEach?.(x=>update(x,'crypto'));
+    window.B3App?.getData?.()?.forEach?.(x=>update(x,'b3'));
+    save();render();
+  }
+  window.addEventListener('crypto-data-updated',scan);
+  window.addEventListener('b3-data-updated',scan);
+  window.addEventListener('mtf-updated',scan);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{ensure();setTimeout(scan,2600)});else{ensure();setTimeout(scan,2600)}
+  setInterval(()=>{if(!document.hidden)scan()},10000);
+  window.EPMotorPriceEvolution={scan,get:()=>db};
 })();
