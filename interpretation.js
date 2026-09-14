@@ -208,7 +208,13 @@
       key = e?.key;
     if (!a)
       return `<div class="decision-card neutral">${head(key, market, a, e?.manual)}<div class="decision-main">AGUARDANDO DADOS</div></div>`;
-    let dataNote = market === "b3" ? `<div class="compact-info">${x.candles.length} candles D1 • último ${new Date(x.candles.at(-1).t * 1000).toLocaleDateString("pt-BR")} • ${x.dataSource || "BRAPI"}${x.candles.length < 66 ? " • HISTÓRICO INSUFICIENTE PARA OS CINCO MOTORES" : ""}${x.dataStale ? " • ATUALIZAÇÃO FALHOU: DADOS ANTERIORES" : ""}</div>` : "";
+    const candles = Array.isArray(x?.candles) ? x.candles : [];
+    const lastCandle = candles.at(-1);
+    const timestamp = Number(lastCandle?.t);
+    const lastDate = Number.isFinite(timestamp) && timestamp > 0
+      ? new Date(timestamp > 1e12 ? timestamp : timestamp * 1000).toLocaleDateString("pt-BR")
+      : "indisponível";
+    let dataNote = market === "b3" ? `<div class="compact-info">${candles.length} candles D1 • último ${lastDate} • ${x?.dataSource || "BRAPI"}${candles.length < 66 ? " • HISTÓRICO INSUFICIENTE PARA OS CINCO MOTORES" : ""}${x?.dataStale ? " • ATUALIZAÇÃO FALHOU: DADOS ANTERIORES" : ""}</div>` : "";
     let v = visual(a),
       action = a.tradeAllowed
         ? a.dir === "BUY"
@@ -247,15 +253,23 @@
     );
   }
   let last = "";
+  function marketCard(market) {
+    try {
+      const map = market === "crypto" ? window.CryptoApp?.getData?.() : window.B3App?.getData?.();
+      const selected = pickFocused(map, market);
+      return { selected, html: card(selected, market) };
+    } catch (error) {
+      console.error("Central de interpretação: falha em " + market, error);
+      return { selected: null, html: `<div class="decision-card neutral">${head(null, market, null, false)}<div class="decision-main">LEITURA TEMPORARIAMENTE INDISPONÍVEL</div><div class="compact-info">Tentando atualizar a leitura automaticamente.</div></div>` };
+    }
+  }
   function render() {
     ensureCss();
-    let cm = window.CryptoApp?.getData?.(),
-      bm = window.B3App?.getData?.(),
-      ce = pickFocused(cm, "crypto"),
-      be = pickFocused(bm, "b3"),
+    const crypto = marketCard("crypto"), b3 = marketCard("b3"),
+      ce = crypto.selected, be = b3.selected,
       el = $("#decisionCenter");
     if (!el) return;
-    let html = card(ce, "crypto") + card(be, "b3");
+    let html = crypto.html + b3.html;
     if (html === last) return;
     last = html;
     el.innerHTML = html;
@@ -271,7 +285,6 @@
     );
   }
   function init() {
-    render();
     [
       "crypto-data-updated",
       "b3-data-updated",
@@ -295,6 +308,7 @@
     setInterval(() => {
       if (!document.hidden) render();
     }, 4e3);
+    render();
     window.EPCentralFocus = {
       set: (market, asset) => {
         if (market && asset) {
