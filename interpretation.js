@@ -199,8 +199,8 @@
         : market === "crypto"
           ? "CRIPTO"
           : "B3",
-      m = +a?.motorAgree || 0;
-    return `<div class="central-auto-head"><b>${name}</b><span>${manual ? "📌 OPERAÇÃO" : "⚡ AUTOMÁTICO"} • ${m}M</span></div>`;
+      m = a ? `${+a.motorAgree || 0}M` : "MOTORES INDISPONÍVEIS";
+    return `<div class="central-auto-head"><b>${name}</b><span>${manual ? "📌 OPERAÇÃO" : "⚡ AUTOMÁTICO"} • ${m}</span></div>`;
   }
   function card(e, market) {
     let x = e?.x,
@@ -208,6 +208,7 @@
       key = e?.key;
     if (!a)
       return `<div class="decision-card neutral">${head(key, market, a, e?.manual)}<div class="decision-main">AGUARDANDO DADOS</div></div>`;
+    let dataNote = market === "b3" ? `<div class="compact-info">${x.candles.length} candles D1 • último ${new Date(x.candles.at(-1).t * 1000).toLocaleDateString("pt-BR")} • ${x.dataSource || "BRAPI"}${x.candles.length < 66 ? " • HISTÓRICO INSUFICIENTE PARA OS CINCO MOTORES" : ""}${x.dataStale ? " • ATUALIZAÇÃO FALHOU: DADOS ANTERIORES" : ""}</div>` : "";
     let v = visual(a),
       action = a.tradeAllowed
         ? a.dir === "BUY"
@@ -229,7 +230,7 @@
             : a.signalTier === "watch"
               ? "🔎"
               : "⚪";
-    return `<div class="decision-card ${v.cls}">${head(key, market, a, e?.manual)}<div class="tier-badge ${v.cls}">${v.tag}</div><div class="decision-main">${v.icon} ${a.decision}</div><div class="decision-score"><b>${a.level}</b> • Score ${a.score}/100 • ${a.extreme}</div><div class="indicator-strip"><span>Motores <b>${a.motorAgree || 0}/5</b></span><span>RSI <b>${fmt(a.rsi)}</b></span><span>CCI <b>${fmt(a.cci)}</b></span><span>MACD <b>${a.macd > 0 ? "COMPRADOR" : a.macd < 0 ? "VENDEDOR" : "NEUTRO"}</b></span></div>${gateLine(x, market)}${ampLine(x, market, a.dir)}${ibcLine(x, market, a.dir, a.motorAgree || 0)}<div class="compact-info"><div><b>Motores:</b> ${motorLine(a)}</div><div><b>4 pilares:</b> ${pillars(a, market)}</div><div><b>✓ Favorece:</b> ${a.reasons.length ? a.reasons.join(" • ") : "sem confirmação forte"}</div><div><b>⚠ Cuidado:</b> ${a.risks.length ? a.risks.join(" • ") : "sem alerta principal"}</div><div><b>→ Próximo:</b> ${a.next.join(" • ")}</div></div><div class="action-box ${v.cls} compact-action"><span>O QUE FAZER</span><b>${actionIcon} ${action}</b></div>${trackButton(x, market)}</div>`;
+    return `<div class="decision-card ${v.cls}">${head(key, market, a, e?.manual)}${dataNote}<div class="tier-badge ${v.cls}">${v.tag}</div><div class="decision-main">${v.icon} ${a.decision}</div><div class="decision-score"><b>${a.level}</b> • Score ${a.score}/100 • ${a.extreme}</div><div class="indicator-strip"><span>Motores <b>${a.motorAgree || 0}/5</b></span><span>RSI <b>${fmt(a.rsi)}</b></span><span>CCI <b>${fmt(a.cci)}</b></span><span>MACD <b>${a.macd > 0 ? "COMPRADOR" : a.macd < 0 ? "VENDEDOR" : "NEUTRO"}</b></span></div>${gateLine(x, market)}${ampLine(x, market, a.dir)}${ibcLine(x, market, a.dir, a.motorAgree || 0)}<div class="compact-info"><div><b>Motores:</b> ${motorLine(a)}</div><div><b>4 pilares:</b> ${pillars(a, market)}</div><div><b>✓ Favorece:</b> ${a.reasons.length ? a.reasons.join(" • ") : "sem confirmação forte"}</div><div><b>⚠ Cuidado:</b> ${a.risks.length ? a.risks.join(" • ") : "sem alerta principal"}</div><div><b>→ Próximo:</b> ${a.next.join(" • ")}</div></div><div class="action-box ${v.cls} compact-action"><span>O QUE FAZER</span><b>${actionIcon} ${action}</b></div>${trackButton(x, market)}</div>`;
   }
   function ensureCss() {
     if ($("#centralAutoStyle")) return;
