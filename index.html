@@ -52,6 +52,16 @@
         </div>
       </section>
       <section class="card">
+        <h2>BAIXAR REGISTROS DOS OBSERVADORES</h2>
+        <p class="sub">Exporta episódios ativos e encerrados deste navegador, incluindo os que não aparecem na tabela. O download não apaga registros.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button type="button" data-observer-export="earlyLeg" style="width:auto">Baixar Início de Pernada</button>
+          <button type="button" data-observer-export="motorEvolution" style="width:auto">Baixar Evolução 1M → 5M</button>
+          <button type="button" data-observer-export="all" style="width:auto">Baixar os dois observadores</button>
+        </div>
+        <div id="observerExportStatus" class="sub" role="status" aria-live="polite">Para análise conjunta, baixe os dois observadores e envie o JSON. Use o mesmo navegador da coleta.</div>
+      </section>
+      <section class="card">
         <h2>CONTADOR DE SINAIS POR CONFLUÊNCIA</h2>
         <p class="sub">
           Registra mudanças reais, evolução 2→3→4→5 motores, confirmações e
@@ -311,6 +321,7 @@
     <script src="live-operation-monitor.js?v=3"></script>
     <script src="operations-selector.js?v=1"></script>
     <script src="exit-intelligence.js?v=2"></script>
+    <script src="observer-records-export.js?v=1"></script>
     <script>
       const cryptoArea = document.getElementById("cryptoArea"),
         b3Area = document.getElementById("b3Area"),
