@@ -149,6 +149,13 @@
     if (!a) return "";
     return `<div class="lop-actions"><button class="lop-btn" data-live-track="1" data-market="${market}" data-asset="${a}">📌 ACOMPANHAR ATIVO</button></div>`;
   }
+  function optionalLine(fn, label) {
+    try { return fn(); }
+    catch (error) {
+      console.error("Central: indicador informativo indisponível — " + label, error);
+      return `<div class="compact-info">${label}: leitura informativa indisponível</div>`;
+    }
+  }
   function ranked(map, market) {
     if (!map?.entries) return [];
     return [...map.entries()]
@@ -236,7 +243,7 @@
             : a.signalTier === "watch"
               ? "🔎"
               : "⚪";
-    return `<div class="decision-card ${v.cls}">${head(key, market, a, e?.manual)}${dataNote}<div class="tier-badge ${v.cls}">${v.tag}</div><div class="decision-main">${v.icon} ${a.decision}</div><div class="decision-score"><b>${a.level}</b> • Score ${a.score}/100 • ${a.extreme}</div><div class="indicator-strip"><span>Motores <b>${a.motorAgree || 0}/5</b></span><span>RSI <b>${fmt(a.rsi)}</b></span><span>CCI <b>${fmt(a.cci)}</b></span><span>MACD <b>${a.macd > 0 ? "COMPRADOR" : a.macd < 0 ? "VENDEDOR" : "NEUTRO"}</b></span></div>${gateLine(x, market)}${ampLine(x, market, a.dir)}${ibcLine(x, market, a.dir, a.motorAgree || 0)}<div class="compact-info"><div><b>Motores:</b> ${motorLine(a)}</div><div><b>4 pilares:</b> ${pillars(a, market)}</div><div><b>✓ Favorece:</b> ${a.reasons.length ? a.reasons.join(" • ") : "sem confirmação forte"}</div><div><b>⚠ Cuidado:</b> ${a.risks.length ? a.risks.join(" • ") : "sem alerta principal"}</div><div><b>→ Próximo:</b> ${a.next.join(" • ")}</div></div><div class="action-box ${v.cls} compact-action"><span>O QUE FAZER</span><b>${actionIcon} ${action}</b></div>${trackButton(x, market)}</div>`;
+    return `<div class="decision-card ${v.cls}">${head(key, market, a, e?.manual)}${dataNote}<div class="tier-badge ${v.cls}">${v.tag}</div><div class="decision-main">${v.icon} ${a.decision}</div><div class="decision-score"><b>${a.level}</b> • Score ${a.score}/100 • ${a.extreme}</div><div class="indicator-strip"><span>Motores <b>${a.motorAgree || 0}/5</b></span><span>RSI <b>${fmt(a.rsi)}</b></span><span>CCI <b>${fmt(a.cci)}</b></span><span>MACD <b>${a.macd > 0 ? "COMPRADOR" : a.macd < 0 ? "VENDEDOR" : "NEUTRO"}</b></span></div>${optionalLine(() => gateLine(x, market), "Reversal Gate")}${optionalLine(() => ampLine(x, market, a.dir), "Amplitude")}${optionalLine(() => ibcLine(x, market, a.dir, a.motorAgree || 0), "IBC")}<div class="compact-info"><div><b>Motores:</b> ${motorLine(a)}</div><div><b>4 pilares:</b> ${pillars(a, market)}</div><div><b>✓ Favorece:</b> ${a.reasons.length ? a.reasons.join(" • ") : "sem confirmação forte"}</div><div><b>⚠ Cuidado:</b> ${a.risks.length ? a.risks.join(" • ") : "sem alerta principal"}</div><div><b>→ Próximo:</b> ${a.next.join(" • ")}</div></div><div class="action-box ${v.cls} compact-action"><span>O QUE FAZER</span><b>${actionIcon} ${action}</b></div>${trackButton(x, market)}</div>`;
   }
   function ensureCss() {
     if ($("#centralAutoStyle")) return;
@@ -253,14 +260,21 @@
     );
   }
   let last = "";
+  const diagnostics = { version: 48, errors: {} };
   function marketCard(market) {
     try {
-      const map = market === "crypto" ? window.CryptoApp?.getData?.() : window.B3App?.getData?.();
+      const app = market === "crypto" ? window.CryptoApp : window.B3App;
+      const map = app?.getData?.();
+      let missing = !app ? "Módulo de dados não carregado"
+        : !map?.size ? (market === "b3" ? "Nenhuma ação com histórico válido. Verifique Conexão B3." : "Nenhuma moeda carregada. Verifique Atualizar Cripto.")
+        : !window.EPDecision?.calc ? "Módulo de interpretação não carregado" : "";
+      if (missing) return { selected: null, html: `<div class="decision-card neutral">${head(null, market, null, false)}<div class="decision-main">AGUARDANDO LEITURA</div><div class="compact-info">${missing}</div></div>` };
       const selected = pickFocused(map, market);
       return { selected, html: card(selected, market) };
     } catch (error) {
       console.error("Central de interpretação: falha em " + market, error);
-      return { selected: null, html: `<div class="decision-card neutral">${head(null, market, null, false)}<div class="decision-main">LEITURA TEMPORARIAMENTE INDISPONÍVEL</div><div class="compact-info">Tentando atualizar a leitura automaticamente.</div></div>` };
+      diagnostics.errors[market] = error instanceof TypeError ? "Formato de dados incompatível" : "Falha no cálculo da interpretação";
+      return { selected: null, html: `<div class="decision-card neutral">${head(null, market, null, false)}<div class="decision-main">LEITURA TEMPORARIAMENTE INDISPONÍVEL</div><div class="compact-info">${diagnostics.errors[market]}. Tentando atualizar a leitura automaticamente.</div></div>` };
     }
   }
   function render() {
@@ -270,6 +284,7 @@
       el = $("#decisionCenter");
     if (!el) return;
     let html = crypto.html + b3.html;
+    diagnostics.renderedAt = Date.now();
     if (html === last) return;
     last = html;
     el.innerHTML = html;
@@ -308,6 +323,7 @@
     setInterval(() => {
       if (!document.hidden) render();
     }, 4e3);
+    window.EPInterpretation = { render, getStatus: () => ({ ...diagnostics, errors: { ...diagnostics.errors } }) };
     render();
     window.EPCentralFocus = {
       set: (market, asset) => {
