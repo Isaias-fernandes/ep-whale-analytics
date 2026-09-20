@@ -233,7 +233,7 @@
       }
     });
   }
-  setInterval(attach, 2000);
+  setInterval(() => { if (!document.hidden) attach(); }, 6000);
   [
     "live-operations-ready",
     "crypto-data-updated",
