@@ -103,7 +103,7 @@
     if (root.dataset.sig === sig) return;
     root.dataset.sig = sig;
     $("#lopCount").textContent =
-      `${ops.length} aberta${ops.length === 1 ? "" : "s"}`;
+      `${ops.length}/10 aberta${ops.length === 1 ? "" : "s"}`;
     root.innerHTML = ops.length
       ? ops.map(card).join("")
       : '<div class="ep24-empty">Nenhuma operação em acompanhamento. Use “ACOMPANHAR ATIVO” na Central de Interpretação.</div>';
@@ -188,6 +188,8 @@
       alert("Este ativo já está em acompanhamento. Veja MINHAS OPERAÇÕES.");
       return;
     }
+    if (ops.length >= 10)
+      return alert("Limite de 10 ativos em acompanhamento. Encerre um acompanhamento para adicionar outro.");
     let g = gate(m, x),
       p = price(x);
     if (!Number.isFinite(p))
@@ -231,7 +233,7 @@
     if (cardEl) cardEl.remove();
     ops.splice(i, 1);
     let count = $("#lopCount");
-    if (count) count.textContent = `${ops.length} aberta${ops.length === 1 ? "" : "s"}`;
+    if (count) count.textContent = `${ops.length}/10 aberta${ops.length === 1 ? "" : "s"}`;
     let root = $("#liveOperations");
     if (root) {
       root.dataset.sig = ops.map((z) => `${z.id}:${z.asset}:${z.market}`).join("|");
@@ -281,7 +283,7 @@
     window.dispatchEvent(new CustomEvent("live-operations-ready"));
     setInterval(() => {
       if (!document.hidden) tick();
-    }, 2000);
+    }, 750);
   }
   setTimeout(init, 1500);
   window.EPLiveOperations = {
