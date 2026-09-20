@@ -13,7 +13,10 @@
    let p=+(x?.livePrice??x?.price??x?.regularMarketPrice??x?.close??0),mot=+d?.motorAgree||0,dir=d?.dir==="BUY"?"COMPRA":d?.dir==="SELL"?"VENDA":"NEUTRO";
    el.innerHTML=`<b>${String(a).replace("USDT","/USDT")}</b> • Preço <b>${fmt(p)}</b> • <b>${mot}/5 motores</b> • ${dir} ${active(m,a)?"• <b>📌 JÁ EM ACOMPANHAMENTO</b>":""}`;
  }
- function focus(m,a){if(a)window.EPCentralFocus?.set?.(m,a)}
+ function focus(m,a){
+   if(!a)return;
+   window.dispatchEvent(new CustomEvent("ep-central-focus",{detail:{market:m,asset:a,source:"operations"}}));
+ }
  function fill(force=false){
    let m=$("#lopMarket")?.value||"crypto",s=$("#lopAsset"); if(!s)return;
    let old=s.value,html=options(m); if(force||s.dataset.market!==m||!s.options.length){s.innerHTML=html;s.dataset.market=m}
