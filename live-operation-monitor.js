@@ -93,7 +93,7 @@
     center.insertAdjacentElement("beforebegin", s);
   }
   function card(o) {
-    return `<div class="lop-card" data-op="${o.id}"><div class="lop-top"><div><b>${String(o.asset).replace("USDT", "/USDT")}</b> <small>${o.market === "b3" ? "B3" : "CRIPTO"} • ${o.dir === "SELL" ? "VENDA" : "COMPRA"}</small><div><b data-f="state">🟦 AGUARDANDO COTAÇÃO</b></div></div><button class="lop-btn lop-close" data-close="${o.id}">ENCERRAR ACOMPANHAMENTO</button></div><div class="lop-grid"><div class="lop-cell"><small>ENTRADA → ATUAL</small><b data-f="price">${fmt(o.entry)} → ${fmt(o.lastPrice)}</b></div><div class="lop-cell"><small>RESULTADO</small><b data-f="pnl">—</b></div><div class="lop-cell"><small>MOTORES ATUAIS</small><b data-f="motors">${o.lastMotors}/5</b><small data-f="peak">Pico ${o.peakMotors}M</small><small data-f="motorList">Aguardando leitura dos 5 motores</small></div><div class="lop-cell"><small>REVERSAL GATE</small><b data-f="gate">${o.entryGate} → —</b><small data-f="gmax">Máx ${o.maxGate}</small></div><div class="lop-cell"><small>TEMPO</small><b data-f="time">0m 0s</b></div><div class="lop-cell"><small>MÁX FAVORÁVEL</small><b class="lop-good" data-f="best">+0.00%</b></div><div class="lop-cell"><small>MÁX ADVERSA</small><b class="lop-bad" data-f="worst">0.00%</b></div></div><div class="lop-grid">${[1, 2, 3, 4, 5].map((n) => `<div class="lop-cell"><small>TEMPO ${n}M</small><b data-f="d${n}">0m 0s</b></div>`).join("")}</div><div class="exit-intel lop-cell" style="margin-top:9px"><small>EXIT INTELLIGENCE — OBSERVACIONAL</small><b data-f="exitLabel">🟢 MANTÉM MOVIMENTO</b><small data-f="exitReason">Sem deterioração relevante</small></div></div>`;
+    return `<div class="lop-card" data-op="${o.id}"><div class="lop-top"><div><b>${String(o.asset).replace("USDT", "/USDT")}</b> <small>${o.market === "b3" ? "B3" : "CRIPTO"} • ${o.dir === "SELL" ? "VENDA" : "COMPRA"}</small><div><b data-f="state">🟦 AGUARDANDO COTAÇÃO</b></div></div><button class="lop-btn lop-close" data-close="${o.id}">ENCERRAR ACOMPANHAMENTO</button></div><div class="lop-grid"><div class="lop-cell"><small>ENTRADA → ATUAL</small><b data-f="price">${fmt(o.entry)} → ${fmt(o.lastPrice)}</b></div><div class="lop-cell"><small>RESULTADO</small><b data-f="pnl">—</b></div><div class="lop-cell"><small>MOTORES ATUAIS</small><b data-f="motors">${o.lastMotors}M</b><small data-f="peak">Pico ${o.peakMotors}M</small></div><div class="lop-cell"><small>REVERSAL GATE</small><b data-f="gate">${o.entryGate} → —</b><small data-f="gmax">Máx ${o.maxGate}</small></div><div class="lop-cell"><small>TEMPO</small><b data-f="time">0m 0s</b></div><div class="lop-cell"><small>MÁX FAVORÁVEL</small><b class="lop-good" data-f="best">+0.00%</b></div><div class="lop-cell"><small>MÁX ADVERSA</small><b class="lop-bad" data-f="worst">0.00%</b></div></div><div class="lop-grid">${[1, 2, 3, 4, 5].map((n) => `<div class="lop-cell"><small>TEMPO ${n}M</small><b data-f="d${n}">0m 0s</b></div>`).join("")}</div><div class="exit-intel lop-cell" style="margin-top:9px"><small>EXIT INTELLIGENCE — OBSERVACIONAL</small><b data-f="exitLabel">🟢 MANTÉM MOVIMENTO</b><small data-f="exitReason">Sem deterioração relevante</small></div></div>`;
   }
   function mountCardNow(o) {
     ensure();
@@ -151,15 +151,8 @@
         ? `${r >= 0 ? "+" : ""}${r.toFixed(2)}%`
         : "—";
       pe.className = Number.isFinite(r) && r >= 0 ? "lop-good" : "lop-bad";
-      el.querySelector('[data-f="motors"]').textContent = `${m}/5`;
+      el.querySelector('[data-f="motors"]').textContent = `${m}M`;
       el.querySelector('[data-f="peak"]').textContent = `Pico ${o.peakMotors}M`;
-      let motorList = el.querySelector('[data-f="motorList"]');
-      if (motorList) {
-        let ms = has && Array.isArray(a?.motors) ? a.motors : [];
-        motorList.innerHTML = ms.length
-          ? ms.map(z => `<span title="${String(z.detail || "").replace(/"/g, "&quot;")}">${z.ok ? "🟢" : "⚪"} ${z.name}</span>`).join("<br>")
-          : "Aguardando leitura dos 5 motores";
-      }
       el.querySelector('[data-f="gate"]').textContent =
         `${o.entryGate} → ${has ? +g?.score || 0 : "—"}`;
       el.querySelector('[data-f="gmax"]').textContent = `Máx ${o.maxGate}`;
