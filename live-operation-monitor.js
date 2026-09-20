@@ -158,8 +158,6 @@
       d = calc(m, x);
     if (!x || !d) return alert("Dados do ativo ainda não disponíveis.");
     let motors = +d.motorAgree || 0;
-    if ((d.dir !== "BUY" && d.dir !== "SELL") || motors < 2)
-      return alert("Acompanhe somente sinais ativos com 2 ou mais motores.");
     let existing = ops.find((o) => o.market === m && o.asset === a);
     if (existing) {
       rebuild();
@@ -193,7 +191,7 @@
       id: `${m}:${a}:${now}`,
       market: m,
       asset: a,
-      dir: d.dir,
+      dir: d.dir === "SELL" ? "SELL" : "BUY",
       entry: p,
       lastPrice: p,
       entryAt: now,
