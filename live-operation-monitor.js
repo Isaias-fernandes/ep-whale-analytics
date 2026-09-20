@@ -91,7 +91,7 @@
     ensure();
     let root = $("#liveOperations");
     if (!root) return;
-    let sig = ops.map((o) => o.id).join("|");
+    let sig = ops.map((o) => `${o.id}:${o.asset}:${o.market}`).join("|");
     if (root.dataset.sig === sig) return;
     root.dataset.sig = sig;
     $("#lopCount").textContent =
@@ -106,7 +106,7 @@
   function refreshFields() {
     rebuild();
     ops.forEach((o) => {
-      let el = document.querySelector(`[data-op="${CSS.escape(o.id)}"]`);
+      let el = [...document.querySelectorAll("[data-op]")].find((node) => node.dataset.op === o.id);
       if (!el) return;
       let x = data(o.market, o.asset),
         a = calc(o.market, x),
@@ -207,8 +207,12 @@
       worst: 0,
     });
     save();
+    let root = $("#liveOperations");
+    if (root) root.dataset.sig = "";
     rebuild();
     refreshFields();
+    window.dispatchEvent(new CustomEvent("live-operations-changed"));
+    return ops.at(-1);
   }
   function close(id) {
     let i = ops.findIndex((o) => o.id === id);
@@ -220,8 +224,11 @@
     hist.push({ ...o, exit: p, exitAt: Date.now(), result: pnl(o, p) });
     ops.splice(i, 1);
     save();
+    let root = $("#liveOperations");
+    if (root) root.dataset.sig = "";
     rebuild();
     refreshFields();
+    window.dispatchEvent(new CustomEvent("live-operations-changed"));
   }
   function tick() {
     let now = Date.now();
