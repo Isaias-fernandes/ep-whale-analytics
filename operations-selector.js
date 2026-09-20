@@ -32,8 +32,8 @@
    $("#lopShow").onclick=()=>{let m=$("#lopMarket").value,a=$("#lopAsset").value;preview();focus(m,a);$("#lopActionStatus").textContent=a?`${String(a).replace("USDT","/USDT")} selecionado para leitura na Central.`:""};
    $("#lopAddManual").onclick=()=>{let m=$("#lopMarket").value,a=$("#lopAsset").value,status=$("#lopActionStatus");if(!a)return;
      status.textContent="Registrando acompanhamento...";
-     window.EPLiveOperations?.add?.(m,a);
-     requestAnimationFrame(()=>{preview();fill(true);let o=(window.EPLiveOperations?.get?.()||[]).find(z=>z.market===m&&z.asset===a);status.textContent=o?`✓ ${String(a).replace("USDT","/USDT")} está em acompanhamento.`:"Acompanhamento não iniciado: confira se o ativo possui sinal ativo com 2 ou mais motores.";if(o){let el=[...document.querySelectorAll("[data-op]")].find(n=>n.dataset.op===o.id);el?.scrollIntoView({behavior:"smooth",block:"center"})}});
+     let created=window.EPLiveOperations?.add?.(m,a);
+     requestAnimationFrame(()=>{preview();fill(true);let o=(window.EPLiveOperations?.get?.()||[]).find(z=>z.market===m&&z.asset===a);status.textContent=o?`✓ ${String(a).replace("USDT","/USDT")} está em acompanhamento.`:"Acompanhamento não iniciado: dados/cotação ainda indisponíveis.";if(o){let el=[...document.querySelectorAll("[data-op]")].find(n=>n.dataset.op===o.id);el?.scrollIntoView({behavior:"smooth",block:"center"})}});
    };
    fill(true);
  }
@@ -43,4 +43,5 @@
  window.addEventListener("crypto-data-updated",refresh);
  window.addEventListener("b3-data-updated",refresh);
  window.addEventListener("ep-central-focus",preview);
+ window.addEventListener("live-operations-changed",()=>{fill(true);preview()});
 })();
