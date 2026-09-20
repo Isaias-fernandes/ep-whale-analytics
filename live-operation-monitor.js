@@ -95,6 +95,23 @@
   function card(o) {
     return `<div class="lop-card" data-op="${o.id}"><div class="lop-top"><div><b>${String(o.asset).replace("USDT", "/USDT")}</b> <small>${o.market === "b3" ? "B3" : "CRIPTO"} • ${o.dir === "SELL" ? "VENDA" : "COMPRA"}</small><div><b data-f="state">🟦 AGUARDANDO COTAÇÃO</b></div></div><button class="lop-btn lop-close" data-close="${o.id}">ENCERRAR ACOMPANHAMENTO</button></div><div class="lop-grid"><div class="lop-cell"><small>ENTRADA → ATUAL</small><b data-f="price">${fmt(o.entry)} → ${fmt(o.lastPrice)}</b></div><div class="lop-cell"><small>RESULTADO</small><b data-f="pnl">—</b></div><div class="lop-cell"><small>MOTORES</small><b data-f="motors">${o.entryMotors}M → ${o.lastMotors}M</b><small data-f="peak">Pico ${o.peakMotors}M</small></div><div class="lop-cell"><small>REVERSAL GATE</small><b data-f="gate">${o.entryGate} → —</b><small data-f="gmax">Máx ${o.maxGate}</small></div><div class="lop-cell"><small>TEMPO</small><b data-f="time">0m 0s</b></div><div class="lop-cell"><small>MÁX FAVORÁVEL</small><b class="lop-good" data-f="best">+0.00%</b></div><div class="lop-cell"><small>MÁX ADVERSA</small><b class="lop-bad" data-f="worst">0.00%</b></div></div><div class="lop-grid">${[1, 2, 3, 4, 5].map((n) => `<div class="lop-cell"><small>TEMPO ${n}M</small><b data-f="d${n}">0m 0s</b></div>`).join("")}</div><div class="exit-intel lop-cell" style="margin-top:9px"><small>EXIT INTELLIGENCE — OBSERVACIONAL</small><b data-f="exitLabel">🟢 MANTÉM MOVIMENTO</b><small data-f="exitReason">Sem deterioração relevante</small></div></div>`;
   }
+  function mountCardNow(o) {
+    ensure();
+    let root = $("#liveOperations");
+    if (!root) return null;
+    root.querySelector(".ep24-empty")?.remove();
+    let el = [...root.querySelectorAll("[data-op]")].find(n => n.dataset.op === o.id);
+    if (!el) {
+      root.insertAdjacentHTML("beforeend", card(o));
+      el = [...root.querySelectorAll("[data-op]")].find(n => n.dataset.op === o.id);
+      let btn = el?.querySelector("[data-close]");
+      if (btn) btn.onclick = () => close(btn.dataset.close);
+    }
+    root.dataset.sig = ops.map(z => `${z.id}:${z.asset}:${z.market}`).join("|");
+    let count = $("#lopCount");
+    if (count) count.textContent = `${ops.length}/10 aberta${ops.length === 1 ? "" : "s"}`;
+    return el;
+  }
   function rebuild() {
     ensure();
     let root = $("#liveOperations");
@@ -216,13 +233,13 @@
       best: 0,
       worst: 0,
     });
-    save();
-    let root = $("#liveOperations");
-    if (root) root.dataset.sig = "";
-    rebuild();
-    refreshFields();
+    let created = ops.at(-1);
+    // Insere o cartão no mesmo clique; persistência e cálculos complementares vêm depois.
+    let el = mountCardNow(created);
     window.dispatchEvent(new CustomEvent("live-operations-changed"));
-    return ops.at(-1);
+    if (el) el.scrollIntoView({ behavior: "auto", block: "nearest" });
+    setTimeout(() => { save(); refreshFields(); }, 0);
+    return created;
   }
   function close(id) {
     let i = ops.findIndex((o) => o.id === id);
@@ -285,7 +302,7 @@
       if (!document.hidden) tick();
     }, 750);
   }
-  setTimeout(init, 1500);
+  setTimeout(init, 100);
   window.EPLiveOperations = {
     add,
     close,
