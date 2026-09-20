@@ -163,22 +163,24 @@
     let existing = ops.find((o) => o.market === m && o.asset === a);
     if (existing) {
       rebuild();
-      refreshFields();
-      let el = document.querySelector(`[data-op="${CSS.escape(existing.id)}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.animate(
-          [
-            { boxShadow: "0 0 0 0 rgba(83,169,255,0)" },
-            { boxShadow: "0 0 0 4px rgba(83,169,255,.9)" },
-            { boxShadow: "0 0 0 0 rgba(83,169,255,0)" },
-          ],
-          { duration: 1600, iterations: 2 },
-        );
-      }
-      return alert(
-        "Este ativo já está em acompanhamento. O acompanhamento existente foi localizado na tela.",
+      let section = document.getElementById("liveOperationsSection");
+      let el = [...document.querySelectorAll("[data-op]")].find(
+        (node) => node.dataset.op === existing.id,
       );
+      if (section) section.style.display = "";
+      if (el) {
+        el.style.outline = "3px solid #53a9ff";
+        el.style.outlineOffset = "2px";
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => {
+          el.style.outline = "";
+          el.style.outlineOffset = "";
+        }, 3500);
+      } else if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      alert("Este ativo já está em acompanhamento. Veja MINHAS OPERAÇÕES.");
+      return;
     }
     let g = gate(m, x),
       p = price(x);
