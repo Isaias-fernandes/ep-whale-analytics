@@ -160,8 +160,26 @@
     let motors = +d.motorAgree || 0;
     if ((d.dir !== "BUY" && d.dir !== "SELL") || motors < 2)
       return alert("Acompanhe somente sinais ativos com 2 ou mais motores.");
-    if (ops.some((o) => o.market === m && o.asset === a))
-      return alert("Este ativo já está em acompanhamento.");
+    let existing = ops.find((o) => o.market === m && o.asset === a);
+    if (existing) {
+      rebuild();
+      refreshFields();
+      let el = document.querySelector(`[data-op="${CSS.escape(existing.id)}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.animate(
+          [
+            { boxShadow: "0 0 0 0 rgba(83,169,255,0)" },
+            { boxShadow: "0 0 0 4px rgba(83,169,255,.9)" },
+            { boxShadow: "0 0 0 0 rgba(83,169,255,0)" },
+          ],
+          { duration: 1600, iterations: 2 },
+        );
+      }
+      return alert(
+        "Este ativo já está em acompanhamento. O acompanhamento existente foi localizado na tela.",
+      );
+    }
     let g = gate(m, x),
       p = price(x);
     if (!Number.isFinite(p))
