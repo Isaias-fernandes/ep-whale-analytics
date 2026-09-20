@@ -217,18 +217,26 @@
   function close(id) {
     let i = ops.findIndex((o) => o.id === id);
     if (i < 0) return;
-    let o = ops[i],
-      x = data(o.market, o.asset),
-      p = price(x);
-    if (!Number.isFinite(p)) p = o.lastPrice;
-    hist.push({ ...o, exit: p, exitAt: Date.now(), result: pnl(o, p) });
+    let o = ops[i];
+    // Resposta visual imediata: retira o cartão antes de qualquer cálculo auxiliar.
+    let cardEl = [...document.querySelectorAll("[data-op]")].find((node) => node.dataset.op === id);
+    if (cardEl) cardEl.remove();
     ops.splice(i, 1);
-    save();
+    let count = $("#lopCount");
+    if (count) count.textContent = `${ops.length} aberta${ops.length === 1 ? "" : "s"}`;
     let root = $("#liveOperations");
-    if (root) root.dataset.sig = "";
-    rebuild();
-    refreshFields();
+    if (root) {
+      root.dataset.sig = ops.map((z) => `${z.id}:${z.asset}:${z.market}`).join("|");
+      if (!ops.length) root.innerHTML = '<div class="ep24-empty">Nenhuma operação em acompanhamento. Selecione um ativo acima para iniciar.</div>';
+    }
     window.dispatchEvent(new CustomEvent("live-operations-changed"));
+    // Arquivamento/cálculo após a interface responder.
+    setTimeout(() => {
+      let x = data(o.market, o.asset), p = price(x);
+      if (!Number.isFinite(p)) p = o.lastPrice;
+      hist.push({ ...o, exit: p, exitAt: Date.now(), result: pnl(o, p) });
+      save();
+    }, 0);
   }
   function tick() {
     let now = Date.now();
@@ -262,7 +270,7 @@
     window.dispatchEvent(new CustomEvent("live-operations-ready"));
     setInterval(() => {
       if (!document.hidden) tick();
-    }, 4000);
+    }, 8000);
   }
   setTimeout(init, 1500);
   window.EPLiveOperations = {
