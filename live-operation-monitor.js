@@ -5,14 +5,22 @@
   let ops = [],
     hist = [];
   try {
-    ops = JSON.parse(localStorage.getItem(KEY) || "[]");
-  } catch {}
+    const saved = JSON.parse(localStorage.getItem(KEY) || "[]");
+    if (Array.isArray(saved)) ops = saved.filter(o => o && o.id && o.asset && o.market);
+  } catch (e) { console.warn("LiveOps: estado ativo preservado em memória; storage inválido", e); }
   try {
-    hist = JSON.parse(localStorage.getItem(HKEY) || "[]");
-  } catch {}
+    const savedHist = JSON.parse(localStorage.getItem(HKEY) || "[]");
+    if (Array.isArray(savedHist)) hist = savedHist;
+  } catch (e) { console.warn("LiveOps: histórico inválido", e); }
   const save = () => {
-    localStorage.setItem(KEY, JSON.stringify(ops));
-    localStorage.setItem(HKEY, JSON.stringify(hist.slice(-300)));
+    try {
+      localStorage.setItem(KEY, JSON.stringify(ops));
+      localStorage.setItem(HKEY, JSON.stringify(hist.slice(-300)));
+      return true;
+    } catch (e) {
+      console.warn("LiveOps: falha ao salvar; operações permanecem em memória", e);
+      return false;
+    }
   };
   const fmt = (n) =>
       Number.isFinite(+n) && +n > 0
@@ -238,28 +246,31 @@
       save();
     }, 0);
   }
+  let tickCursor = 0;
   function tick() {
-    let now = Date.now();
-    ops.forEach((o) => {
-      let x = data(o.market, o.asset),
-        a = calc(o.market, x),
-        g = gate(o.market, x),
-        p = price(x);
-      if (!a || !Number.isFinite(p)) return;
-      let dt = Math.min(15000, Math.max(0, now - (o.lastTs || now))),
-        lm = +o.lastMotors || 0;
-      if (lm >= 1 && lm <= 5) o.durations[lm] = (o.durations[lm] || 0) + dt;
-      o.lastTs = now;
-      o.lastPrice = p;
-      o.lastMotors = +a.motorAgree || 0;
-      o.peakMotors = Math.max(o.peakMotors, o.lastMotors);
-      o.maxGate = Math.max(o.maxGate, +g?.score || 0);
-      let r = pnl(o, p);
-      if (Number.isFinite(r)) {
-        o.best = Math.max(o.best || 0, r);
-        o.worst = Math.min(o.worst || 0, r);
-      }
-    });
+    if (!ops.length) return;
+    let now = Date.now(), o = ops[tickCursor % ops.length];
+    tickCursor = (tickCursor + 1) % Math.max(1, ops.length);
+    let x = data(o.market, o.asset),
+      p = price(x);
+    // Falta temporária de dados nunca zera nem substitui o último estado válido.
+    if (!x || !Number.isFinite(p)) { refreshFields(); return; }
+    let a = calc(o.market, x);
+    if (!a) { refreshFields(); return; }
+    let g = gate(o.market, x),
+      dt = Math.min(15000, Math.max(0, now - (o.lastTs || now))),
+      lm = +o.lastMotors || 0;
+    if (lm >= 1 && lm <= 5) o.durations[lm] = (o.durations[lm] || 0) + dt;
+    o.lastTs = now;
+    o.lastPrice = p;
+    o.lastMotors = +a.motorAgree || 0;
+    o.peakMotors = Math.max(+o.peakMotors || 0, o.lastMotors);
+    o.maxGate = Math.max(+o.maxGate || 0, +g?.score || 0);
+    let r = pnl(o, p);
+    if (Number.isFinite(r)) {
+      o.best = Math.max(+o.best || 0, r);
+      o.worst = Math.min(+o.worst || 0, r);
+    }
     save();
     refreshFields();
   }
@@ -270,7 +281,7 @@
     window.dispatchEvent(new CustomEvent("live-operations-ready"));
     setInterval(() => {
       if (!document.hidden) tick();
-    }, 8000);
+    }, 2000);
   }
   setTimeout(init, 1500);
   window.EPLiveOperations = {
