@@ -1,5 +1,6 @@
 (()=>{
  const $=s=>document.querySelector(s);
+ const selected={crypto:"",b3:""};
  function mapFor(m){return m==="crypto"?window.CryptoApp?.getData?.():window.B3App?.getData?.()}
  function fmt(n){return Number.isFinite(+n)?(+n).toLocaleString("pt-BR",{maximumFractionDigits:+n<10?6:2}):"—"}
  function active(m,a){return (window.EPLiveOperations?.get?.()||[]).some(o=>o.market===m&&o.asset===a)}
@@ -19,8 +20,8 @@
  }
  function fill(force=false){
    let m=$("#lopMarket")?.value||"crypto",s=$("#lopAsset"); if(!s)return;
-   let old=s.value,html=options(m); if(force||s.dataset.market!==m||!s.options.length){s.innerHTML=html;s.dataset.market=m}
-   if([...s.options].some(o=>o.value===old))s.value=old; preview();
+   let old=selected[m]||s.value,html=options(m); if(force||s.dataset.market!==m||!s.options.length){s.innerHTML=html;s.dataset.market=m}
+   if([...s.options].some(o=>o.value===old))s.value=old; else if(s.value)selected[m]=s.value; preview();
  }
  function ensure(){
    let root=$("#liveOperations"); if(!root||$("#lopManualSelector"))return;
@@ -28,7 +29,7 @@
    box.innerHTML=`<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center"><select id="lopMarket" class="lop-btn"><option value="crypto">CRIPTO</option><option value="b3">B3</option></select><select id="lopAsset" class="lop-btn" style="min-width:210px"></select><button id="lopShow" class="lop-btn" type="button">👁 MOSTRAR ATIVO</button><button id="lopAddManual" class="lop-btn" type="button">📌 INICIAR ACOMPANHAMENTO</button></div><div id="lopPreview" class="lop-cell">Selecione um ativo.</div><div id="lopActionStatus" class="sub" role="status" aria-live="polite"></div>`;
    root.parentElement?.insertBefore(box,root);
    $("#lopMarket").onchange=()=>fill(true);
-   $("#lopAsset").onchange=preview;
+   $("#lopAsset").onchange=()=>{let m=$("#lopMarket")?.value||"crypto";selected[m]=$("#lopAsset").value;preview()};
    $("#lopShow").onclick=()=>{let m=$("#lopMarket").value,a=$("#lopAsset").value;preview();focus(m,a);$("#lopActionStatus").textContent=a?`${String(a).replace("USDT","/USDT")} selecionado para leitura na Central.`:""};
    $("#lopAddManual").onclick=()=>{let m=$("#lopMarket").value,a=$("#lopAsset").value,status=$("#lopActionStatus");if(!a)return;
      let name=String(a).replace("USDT","/USDT");
