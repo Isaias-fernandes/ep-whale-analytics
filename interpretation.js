@@ -4,7 +4,7 @@
       Number.isFinite(+n)
         ? (+n).toLocaleString("pt-BR", { maximumFractionDigits: d })
         : "—";
-  const focus = { crypto: null, b3: null };
+  const focus = { crypto: null };
   function visual(a) {
     if (a.signalTier === "confirmed")
       return a.dir === "BUY"
@@ -174,11 +174,11 @@
       })
       .sort((u, v) => v.m - u.m || v.p - u.p || v.score - u.score);
   }
-  function pick(map, market) {
-    let list = ranked(map, market);
+  function pick(map, market, excludeKey = null) {
+    let list = ranked(map, market).filter((e) => e.key !== excludeKey);
     return list.find((e) => e.m >= 2) || list[0] || null;
   }
-  function pickFocused(map, market) {
+  function pickFocused(map, market, excludeKey = null) {
     let wanted = focus[market];
     if (wanted && map?.get) {
       let x = map.get(wanted) || map.get(String(wanted).replace("/", ""));
@@ -198,7 +198,7 @@
         };
       }
     }
-    return pick(map, market);
+    return pick(map, market, excludeKey);
   }
   function head(key, market, a, manual) {
     let name = key
@@ -260,7 +260,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 48, errors: {} };
+  const diagnostics = { version: 49, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
@@ -279,19 +279,25 @@
   }
   function render() {
     ensureCss();
-    const crypto = marketCard("crypto"), b3 = marketCard("b3"),
-      ce = crypto.selected, be = b3.selected,
+    const app = window.CryptoApp, map = app?.getData?.(),
       el = $("#decisionCenter");
     if (!el) return;
-    let html = crypto.html + b3.html;
+    let first = marketCard("crypto"), second = null;
+    if (map?.size && window.EPDecision?.calc) {
+      const e = pick(map, "crypto", first.selected?.key || null);
+      second = { selected: e, html: card(e, "crypto") };
+    } else {
+      second = { selected: null, html: '<div class="decision-card neutral"><div class="decision-main">AGUARDANDO SEGUNDO SINAL CRIPTO</div></div>' };
+    }
+    let html = first.html + second.html;
     diagnostics.renderedAt = Date.now();
     if (html === last) return;
     last = html;
     el.innerHTML = html;
     bindTrack(el);
     const selection = {
-      crypto: ce?.key || null,
-      b3: be?.key || null,
+      crypto: first.selected?.key || null,
+      crypto2: second.selected?.key || null,
       ts: Date.now(),
     };
     window.EPCentralSelection = selection;
@@ -302,7 +308,6 @@
   function init() {
     [
       "crypto-data-updated",
-      "b3-data-updated",
       "mtf-updated",
       "news-impact-updated",
       "reversal-gate-ready",
@@ -310,7 +315,7 @@
     ].forEach((ev) => window.addEventListener(ev, render));
     window.addEventListener("ep-central-focus", (ev) => {
       let d = ev.detail || {};
-      if ((d.market === "crypto" || d.market === "b3") && d.asset) {
+      if (d.market === "crypto" && d.asset) {
         focus[d.market] = d.asset;
         last = "";
         render();
@@ -337,7 +342,6 @@
         if (market) focus[market] = null;
         else {
           focus.crypto = null;
-          focus.b3 = null;
         }
         last = "";
         render();
