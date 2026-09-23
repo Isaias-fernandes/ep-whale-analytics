@@ -19,7 +19,7 @@
   const pct=(a,b)=>a?((b-a)/a)*100:NaN;
   const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch{return{}}};
   const db=load();
-  const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){console.warn('EP Retest: armazenamento local indisponível',e);return false}};
 
   function analyze(x){
     const c=(x.candles||[]).slice(-LOOKBACK);
@@ -51,7 +51,7 @@
 
   function scan(){
     const map=window.CryptoApp?.getData?.();
-    if(!map?.size)return;
+    if(!map?.size){render([],0);return;}
     const rows=[];
     map.forEach(x=>{const r=analyze(x);if(r)rows.push(r)});
     rows.sort((a,b)=>{
@@ -69,16 +69,17 @@
       if(now-e.startTs>=86400000)e.closed=true;
     }
     db.events=db.events.slice(-500);
-    db.rows=rows;db.updatedAt=now;save();render(rows);
+    db.rows=rows;db.updatedAt=now;render(rows,map.size);save();
     window.dispatchEvent(new CustomEvent('ep-retest-updated',{detail:{rows}}));
   }
 
   const f=(n,d=2)=>Number.isFinite(+n)?(+n).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
-  function render(rows){
+  function render(rows,total=window.CryptoApp?.getData?.()?.size||0){
     let el=document.querySelector('#retestObserver');
     if(!el)return; // painel tem posição fixa no index.html; não injeta conteúdo em outras áreas do EP.
     const show=rows.filter(r=>r.giveback>=50 || r.status!=='LONGE').slice(0,25);
-    el.innerHTML=show.length?`<div style="overflow:auto"><table class="price-track"><thead><tr><th>Ativo</th><th>Pernada</th><th>Classe devolução</th><th>Mínima</th><th>Máxima</th><th>Atual</th><th>Dist. fundo</th><th>Devolução</th></tr></thead><tbody>${show.map(r=>`<tr><td><b>${r.asset}</b></td><td><b>+${f(r.leg,1)}% (≥${r.tier}%)</b></td><td><b>${r.givebackStatus}</b></td><td>${f(r.low,r.low<10?6:2)}</td><td>${f(r.high,r.high<10?6:2)}</td><td>${f(r.current,r.current<10?6:2)}</td><td>${f(r.distLow,1)}%</td><td>${f(r.giveback,1)}%</td></tr>`).join('')}</tbody></table></div>`:'Nenhum reteste/aproximação detectado agora.';
+    const diag=`<div class="sub" style="margin-bottom:8px">Dados recebidos: <b>${total}/50 moedas</b> • Pernadas ≥10% detectadas: <b>${rows.length}</b> • Exibidas: <b>${show.length}</b></div>`;
+    el.innerHTML=diag+(show.length?`<div style="overflow:auto"><table class="price-track"><thead><tr><th>Ativo</th><th>Pernada</th><th>Classe devolução</th><th>Mínima</th><th>Máxima</th><th>Atual</th><th>Dist. fundo</th><th>Devolução</th></tr></thead><tbody>${show.map(r=>`<tr><td><b>${r.asset}</b></td><td><b>+${f(r.leg,1)}% (≥${r.tier}%)</b></td><td><b>${r.givebackStatus}</b></td><td>${f(r.low,r.low<10?6:2)}</td><td>${f(r.high,r.high<10?6:2)}</td><td>${f(r.current,r.current<10?6:2)}</td><td>${f(r.distLow,1)}%</td><td>${f(r.giveback,1)}%</td></tr>`).join('')}</tbody></table></div>`:'Nenhum ativo atingiu agora os critérios de devolução/reteste para exibição.');
   }
   window.addEventListener('crypto-data-updated',scan);
   window.addEventListener('crypto-realtime-updated',scan);
