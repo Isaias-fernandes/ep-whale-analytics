@@ -76,11 +76,7 @@
   const f=(n,d=2)=>Number.isFinite(+n)?(+n).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
   function render(rows){
     let el=document.querySelector('#retestObserver');
-    if(!el){
-      const s=document.createElement('section');s.className='card';
-      s.innerHTML='<h2>LAB — PUMP → RETRAÇÃO → RETESTE</h2><p class="sub">Observador experimental. Classifica a devolução da pernada: retração, reteste inicial, reteste profundo, retorno ao fundo ou fundo perdido. Não altera motores oficiais.</p><div id="retestObserver"></div>';
-      (document.querySelector('main')||document.body).appendChild(s);el=s.querySelector('#retestObserver');
-    }
+    if(!el)return; // painel tem posição fixa no index.html; não injeta conteúdo em outras áreas do EP.
     const show=rows.filter(r=>r.giveback>=50 || r.status!=='LONGE').slice(0,25);
     el.innerHTML=show.length?`<div style="overflow:auto"><table class="price-track"><thead><tr><th>Ativo</th><th>Pernada</th><th>Classe devolução</th><th>Mínima</th><th>Máxima</th><th>Atual</th><th>Dist. fundo</th><th>Devolução</th></tr></thead><tbody>${show.map(r=>`<tr><td><b>${r.asset}</b></td><td><b>+${f(r.leg,1)}% (≥${r.tier}%)</b></td><td><b>${r.givebackStatus}</b></td><td>${f(r.low,r.low<10?6:2)}</td><td>${f(r.high,r.high<10?6:2)}</td><td>${f(r.current,r.current<10?6:2)}</td><td>${f(r.distLow,1)}%</td><td>${f(r.giveback,1)}%</td></tr>`).join('')}</tbody></table></div>`:'Nenhum reteste/aproximação detectado agora.';
   }
