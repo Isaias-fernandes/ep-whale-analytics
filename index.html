@@ -18,14 +18,13 @@
     <main>
       <section class="market-tabs sticky-tabs">
         <button id="tabCrypto" class="active">CRIPTO — 25 MOEDAS</button
-        ><button id="tabB3">B3 — 25 AÇÕES</button
         ><button id="tabBacktest">BACKTEST / VALIDAÇÃO</button>
       </section>
       <section class="card overview">
         <div>
           <b>Visão rápida</b>
           <p>
-            25 criptomoedas + 25 ações. Confluência adaptativa:
+            25 criptomoedas. Confluência adaptativa:
             <b
               >Técnico + Estrutura/Microtendência + Supersinal de Volatilidade +
               Bollinger/Keltner + Volume/Fluxo</b
@@ -113,10 +112,6 @@
           <h2>Top 4 Cripto</h2>
           <div id="scanner" class="grid grid4"></div>
         </div>
-        <div>
-          <h2>Top 4 B3</h2>
-          <div id="b3Scanner" class="grid grid4"></div>
-        </div>
       </section>
       <section class="card chart-section">
         <h2>Comparação por Candles</h2>
@@ -144,28 +139,6 @@
               <b>Situação do ativo</b><span>Aguardando dados...</span>
             </div>
             <div id="cryptoPatterns" class="patterns"></div>
-          </article>
-          <article class="chart-card">
-            <div class="chart-toolbar">
-              <label>Ação B3<select id="chartB3Pair"></select></label
-              ><label
-                >Período<select id="chartB3Tf">
-                  <option value="M1">M1</option>
-                  <option value="M5">M5</option>
-                  <option value="M15" selected>M15</option>
-                  <option value="M30">M30</option>
-                  <option value="H1">H1</option>
-                  <option value="D1">D1</option>
-                </select></label
-              ><span id="b3ChartSignal" class="signal-badge">Aguardando</span>
-            </div>
-            <div id="b3ChartStatus" class="sub"></div>
-            <div id="b3CandleChart" class="candle-chart"></div>
-            <div id="b3RsiAlert" class="rsi-alert neutral">Aguardando</div>
-            <div id="b3Situation" class="situation-panel">
-              <b>Situação do ativo</b><span>Aguardando dados...</span>
-            </div>
-            <div id="b3Patterns" class="patterns"></div>
           </article>
         </div>
       </section>
@@ -205,63 +178,13 @@
           <div id="detail"></div>
         </section>
       </section>
-      <section id="b3Area">
-        <section class="card">
-          <h2>B3 — Fluxo Institucional</h2>
-          <p class="warn">
-            Proxy por preço e volume; não é leitura direta do book da bolsa.
-          </p>
-        </section>
-        <section class="card token-box">
-          <h3>Conexão B3</h3>
-          <div class="token-row">
-            <input
-              id="b3Token"
-              type="password"
-              placeholder="Token brapi"
-            /><button id="saveB3Token">Salvar token</button
-            ><button id="clearB3Token" class="secondary">Limpar</button>
-          </div>
-          <div id="b3Status" class="sub">Aguardando token...</div>
-        </section>
-        <section class="card controls">
-          <label
-            >Score mínimo<select id="b3Min">
-              <option>60</option>
-              <option>70</option>
-              <option>80</option>
-              <option>90</option>
-            </select></label
-          ><label
-            >Janela histórica<select id="b3Range">
-              <option value="1mo">1 mês</option>
-              <option value="3mo" selected>3 meses</option>
-              <option value="6mo">6 meses</option>
-            </select></label
-          ><button id="b3Refresh">Atualizar B3</button>
-        </section>
-        <section class="card whale">
-          <h2>FLUXO INSTITUCIONAL B3 — TOP 4</h2>
-          <div id="b3FlowPanel" class="grid grid4"></div>
-        </section>
-        <section class="card">
-          <h2>Detalhe B3</h2>
-          <select id="b3Pair"></select>
-          <div id="b3Detail"></div>
-        </section>
-      </section>
       <section id="backtestArea" class="card">
         <h2>BACKTEST / VALIDAÇÃO — V2</h2>
         <p>
-          <b>Validação histórica informativa</b> das 25 criptomoedas e 25 ações
-          B3.
+          <b>Validação histórica informativa</b> das 25 criptomoedas.
         </p>
         <div class="bt-controls">
-          <label
-            >Mercado<select id="btMarket">
-              <option value="crypto">Cripto</option>
-              <option value="b3">B3</option>
-            </select></label
+          <input id="btMarket" type="hidden" value="crypto" /
           ><label>Ativo<select id="btAsset"></select></label
           ><label
             >Tempo gráfico<select id="btTf">
@@ -291,7 +214,6 @@
     <script src="confluence-engine.js?v=2"></script>
     <script src="decision-engine.js?v=41"></script>
     <script src="app.js?v=28"></script>
-    <script src="b3.js?v=38"></script>
     <script src="dashboard2.js?v=35"></script>
     <script src="stretch-observer.js?v=6"></script>
     <script src="pattern-indicator-lab.js?v=5"></script>
@@ -324,29 +246,22 @@
     <script src="observer-records-export.js?v=1"></script>
     <script>
       const cryptoArea = document.getElementById("cryptoArea"),
-        b3Area = document.getElementById("b3Area"),
         backtestArea = document.getElementById("backtestArea"),
         tabCrypto = document.getElementById("tabCrypto"),
-        tabB3 = document.getElementById("tabB3"),
         tabBacktest = document.getElementById("tabBacktest");
       function setMarket(m) {
         const c = m === "crypto",
-          b = m === "b3",
           bt = m === "backtest";
         cryptoArea.classList.toggle("focus-market", c);
-        b3Area.classList.toggle("focus-market", b);
         backtestArea.classList.toggle("focus-market", bt);
         tabCrypto.classList.toggle("active", c);
-        tabB3.classList.toggle("active", b);
         tabBacktest.classList.toggle("active", bt);
-        (c ? cryptoArea : b ? b3Area : backtestArea).scrollIntoView({
+        (c ? cryptoArea : backtestArea).scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
-        if (b) window.B3App?.ensureLoaded?.();
       }
       tabCrypto.onclick = () => setMarket("crypto");
-      tabB3.onclick = () => setMarket("b3");
       tabBacktest.onclick = () => setMarket("backtest");
     </script>
   </body>
