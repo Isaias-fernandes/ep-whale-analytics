@@ -6,19 +6,7 @@
   const NEAR_PCT=8;
   const levels=[50,30,20,10];
   const h1Cache=new Map(), H1_TTL=5*60*1000;
-  async function h1Candles(sym){
-    const old=h1Cache.get(sym),now=Date.now();
-    if(old&&now-old.ts<H1_TTL)return old.c;
-    const bases=['https://api.binance.com','https://api-gcp.binance.com','https://data-api.binance.vision'];
-    let err;
-    for(const base of bases){try{
-      const r=await fetch(base+'/api/v3/klines?symbol='+encodeURIComponent(sym)+'&interval=1h&limit=168',{cache:'no-store'});
-      if(!r.ok)throw Error('HTTP '+r.status);
-      const a=await r.json(),candles=a.map(x=>({t:+x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]}));
-      h1Cache.set(sym,{ts:now,c:candles});return candles;
-    }catch(e){err=e}}
-    throw err||Error('H1 indisponível');
-  }
+  async function h1Candles(sym){ return window.EPH1Data?.get ? window.EPH1Data.get(sym) : []; }
 
   function givebackClass(g){
     if(!Number.isFinite(g)) return 'SEM DADO';
