@@ -7,15 +7,7 @@
   function load(k,d){try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch{return d}}
   let db=load(KEY,{}), events=load(HIST,[]);
   const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(HIST,JSON.stringify(events.slice(-5000)))}catch(e){}};
-  async function h1(sym){
-    const old=cache.get(sym),now=Date.now(); if(old&&now-old.ts<TTL)return old.c;
-    for(const base of ['https://api.binance.com','https://api-gcp.binance.com','https://data-api.binance.vision'])try{
-      const r=await fetch(base+'/api/v3/klines?symbol='+encodeURIComponent(sym)+'&interval=1h&limit=168',{cache:'no-store'});
-      if(!r.ok)continue; const a=await r.json();
-      const c=a.map(x=>({t:+x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5],q:+x[7],tr:+x[8],tb:+x[9]}));
-      cache.set(sym,{ts:now,c});return c;
-    }catch(e){} return [];
-  }
+  async function h1(sym){ return window.EPH1Data?.get ? window.EPH1Data.get(sym) : []; }
   function stats(x,c){
     if(c.length<24)return {state:'SEM DADO',score:0};
     const cur=num(x.price)||c.at(-1).c, lo=Math.min(...c.map(z=>z.l)), hi=Math.max(...c.map(z=>z.h));
