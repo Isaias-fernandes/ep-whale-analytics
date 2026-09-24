@@ -119,7 +119,7 @@
   setTimeout(() => {
       loadScript("professional-history-limit.js?v=6", "data-prof-history-limit");
       loadScript("reversal-gate.js?v=3", "data-reversal-gate");
-    loadScript("signal-evolution-lab.js?v=1", "data-signal-evolution-lab");
+    loadScript("signal-evolution-lab.js?v=2", "data-signal-evolution-lab");
     ensure();
     render();
     setInterval(() => {
