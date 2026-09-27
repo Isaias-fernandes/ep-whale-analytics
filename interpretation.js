@@ -159,7 +159,7 @@
   function earlyCard(z) {
     if(!z)return "";
     const e=z.e,name=String(z.key).replace("USDT","/USDT");
-    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button></div></div>`;
+    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button type="button" class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button><span class="sub" data-m6-status="${z.key}"></span></div></div>`;
   }
   function trackButton(x, market) {
     let a = market === "crypto" ? x?.sym || x?.key : x?.ticker || x?.key;
@@ -270,7 +270,16 @@
     document.head.appendChild(st);
   }
   function bindTrack(el) {
-    el.querySelectorAll("[data-m6-track]").forEach(b => b.onclick = () => window.EPMotor6Watch?.add?.(b.dataset.asset));
+    el.querySelectorAll("[data-m6-track]").forEach(b => b.onclick = () => {
+      const status = el.querySelector('[data-m6-status="'+b.dataset.asset+'"]');
+      if (!window.EPMotor6Watch?.add) { if(status) status.textContent=' Monitor carregando… tente novamente em 1 segundo.'; return; }
+      const o = window.EPMotor6Watch.add(b.dataset.asset);
+      if (o) {
+        b.textContent='✅ SINAL EM MONITORAMENTO';
+        b.disabled=true;
+        if(status) status.textContent=' Registro iniciado.';
+      }
+    });
     el.querySelectorAll("[data-live-track]").forEach(
       (b) =>
         (b.onclick = () =>
@@ -278,7 +287,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 51, errors: {} };
+  const diagnostics = { version: 52, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
