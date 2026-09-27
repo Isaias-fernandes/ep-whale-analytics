@@ -159,7 +159,7 @@
   function earlyCard(z) {
     if(!z)return "";
     const e=z.e,name=String(z.key).replace("USDT","/USDT");
-    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div></div>`;
+    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button></div></div>`;
   }
   function trackButton(x, market) {
     let a = market === "crypto" ? x?.sym || x?.key : x?.ticker || x?.key;
@@ -270,6 +270,7 @@
     document.head.appendChild(st);
   }
   function bindTrack(el) {
+    el.querySelectorAll("[data-m6-track]").forEach(b => b.onclick = () => window.EPMotor6Watch?.add?.(b.dataset.asset));
     el.querySelectorAll("[data-live-track]").forEach(
       (b) =>
         (b.onclick = () =>
@@ -277,7 +278,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 50, errors: {} };
+  const diagnostics = { version: 51, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
@@ -331,6 +332,8 @@
       "live-operations-ready",
       "ep-early-leg-motor-ready",
       "ep-early-leg-updated",
+      "ep-motor6-watch-ready",
+      "ep-motor6-watch-changed",
     ].forEach((ev) => window.addEventListener(ev, render));
     window.addEventListener("ep-central-focus", (ev) => {
       let d = ev.detail || {};
