@@ -144,6 +144,23 @@
         : "";
     return `<div class="rgate-line"><b>IBC / FLUXO INSTITUCIONAL:</b> <span>${z.label} • ${z.score}/100${premium}</span>${z.parts?.length ? `<small> • confirma: ${z.parts.join(", ")}</small>` : ""}</div>`;
   }
+  function earlyLegLine(x, market) {
+    if (market !== "crypto" || !window.EPEarlyLegMotorV1?.calc) return "";
+    const e = window.EPEarlyLegMotorV1.calc(x);
+    if (!e || e.score < 35) return "";
+    const cls = e.score >= 65 ? "rgate-green" : e.score >= 50 ? "rgate-yellow" : "";
+    return `<div class="rgate-line"><b>🧪 INÍCIO DE PERNADA:</b> <span class="${cls}"><b>${e.phase} • ${e.score}/100</b></span><small> • ${e.pattern || "estrutura em formação"} • PRE-LEG ${e.preLegScore || 0} • Futuros ${e.futuresScore ?? "—"} • RSI ${fmt(e.rsi)}</small></div>`;
+  }
+  function earlyCandidate(map) {
+    if (!map?.entries || !window.EPEarlyLegMotorV1?.calc) return null;
+    return [...map.entries()].map(([key,x])=>({key,x,e:window.EPEarlyLegMotorV1.calc(x)}))
+      .filter(z=>z.e?.score>=35).sort((a,b)=>b.e.score-a.e.score)[0]||null;
+  }
+  function earlyCard(z) {
+    if(!z)return "";
+    const e=z.e,name=String(z.key).replace("USDT","/USDT");
+    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div></div>`;
+  }
   function trackButton(x, market) {
     let a = market === "crypto" ? x?.sym || x?.key : x?.ticker || x?.key;
     if (!a) return "";
@@ -243,7 +260,7 @@
             : a.signalTier === "watch"
               ? "🔎"
               : "⚪";
-    return `<div class="decision-card ${v.cls}">${head(key, market, a, e?.manual)}${dataNote}<div class="tier-badge ${v.cls}">${v.tag}</div><div class="decision-main">${v.icon} ${a.decision}</div><div class="decision-score"><b>${a.level}</b> • Score ${a.score}/100 • ${a.extreme}</div><div class="indicator-strip"><span>Motores <b>${a.motorAgree || 0}/5</b></span><span>RSI <b>${fmt(a.rsi)}</b></span><span>CCI <b>${fmt(a.cci)}</b></span><span>MACD <b>${a.macd > 0 ? "COMPRADOR" : a.macd < 0 ? "VENDEDOR" : "NEUTRO"}</b></span></div>${optionalLine(() => gateLine(x, market), "Reversal Gate")}${optionalLine(() => ampLine(x, market, a.dir), "Amplitude")}${optionalLine(() => ibcLine(x, market, a.dir, a.motorAgree || 0), "IBC")}<div class="compact-info"><div><b>Motores:</b> ${motorLine(a)}</div><div><b>4 pilares:</b> ${pillars(a, market)}</div><div><b>✓ Favorece:</b> ${a.reasons.length ? a.reasons.join(" • ") : "sem confirmação forte"}</div><div><b>⚠ Cuidado:</b> ${a.risks.length ? a.risks.join(" • ") : "sem alerta principal"}</div><div><b>→ Próximo:</b> ${a.next.join(" • ")}</div></div><div class="action-box ${v.cls} compact-action"><span>O QUE FAZER</span><b>${actionIcon} ${action}</b></div>${trackButton(x, market)}</div>`;
+    return `<div class="decision-card ${v.cls}">${head(key, market, a, e?.manual)}${dataNote}<div class="tier-badge ${v.cls}">${v.tag}</div><div class="decision-main">${v.icon} ${a.decision}</div><div class="decision-score"><b>${a.level}</b> • Score ${a.score}/100 • ${a.extreme}</div><div class="indicator-strip"><span>Motores <b>${a.motorAgree || 0}/5</b></span><span>RSI <b>${fmt(a.rsi)}</b></span><span>CCI <b>${fmt(a.cci)}</b></span><span>MACD <b>${a.macd > 0 ? "COMPRADOR" : a.macd < 0 ? "VENDEDOR" : "NEUTRO"}</b></span></div>${optionalLine(() => gateLine(x, market), "Reversal Gate")}${optionalLine(() => ampLine(x, market, a.dir), "Amplitude")}${optionalLine(() => ibcLine(x, market, a.dir, a.motorAgree || 0), "IBC")}${optionalLine(() => earlyLegLine(x, market), "Início de Pernada")}<div class="compact-info"><div><b>Motores:</b> ${motorLine(a)}</div><div><b>4 pilares:</b> ${pillars(a, market)}</div><div><b>✓ Favorece:</b> ${a.reasons.length ? a.reasons.join(" • ") : "sem confirmação forte"}</div><div><b>⚠ Cuidado:</b> ${a.risks.length ? a.risks.join(" • ") : "sem alerta principal"}</div><div><b>→ Próximo:</b> ${a.next.join(" • ")}</div></div><div class="action-box ${v.cls} compact-action"><span>O QUE FAZER</span><b>${actionIcon} ${action}</b></div>${trackButton(x, market)}</div>`;
   }
   function ensureCss() {
     if ($("#centralAutoStyle")) return;
@@ -260,7 +277,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 49, errors: {} };
+  const diagnostics = { version: 50, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
@@ -289,7 +306,7 @@
     } else {
       second = { selected: null, html: '<div class="decision-card neutral"><div class="decision-main">AGUARDANDO SEGUNDO SINAL CRIPTO</div></div>' };
     }
-    let html = first.html + second.html;
+    const early = earlyCandidate(map); let html = first.html + second.html + earlyCard(early);
     diagnostics.renderedAt = Date.now();
     if (html === last) return;
     last = html;
@@ -312,6 +329,8 @@
       "news-impact-updated",
       "reversal-gate-ready",
       "live-operations-ready",
+      "ep-early-leg-motor-ready",
+      "ep-early-leg-updated",
     ].forEach((ev) => window.addEventListener(ev, render));
     window.addEventListener("ep-central-focus", (ev) => {
       let d = ev.detail || {};
