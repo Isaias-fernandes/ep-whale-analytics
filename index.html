@@ -6,6 +6,7 @@
     <title>EP Whale Analytics</title>
     <link rel="stylesheet" href="styles.css?v=41" />
     <link rel="stylesheet" href="signal-stats-enhanced.css?v=1" />
+  <style id="m6WatchStyle">.m6-watch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}.m6-watch-card{border:1px solid #315a72;border-left:4px solid #53a9ff;border-radius:12px;background:#081a29;padding:11px}.m6-watch-head{display:flex;justify-content:space-between;gap:8px}.m6-watch-head span{font-size:11px;color:#7ff0c7}.m6-watch-main{font-size:16px;margin:8px 0}.m6-pos,.m6-hit{color:#58e6aa}.m6-neg{color:#ff8f9a}.m6-targets{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0;font-size:11px}.m6-watch-empty{padding:12px;color:#83a0b7}</style>
   </head>
   <body>
     <header>
@@ -49,6 +50,10 @@
           <div class="decision-card neutral">Aguardando dados...</div>
           <div class="decision-card neutral">Aguardando dados...</div>
         </div>
+      </section>
+      <section class="card" id="motor6WatchSection">
+        <div class="ep24-head"><div><h2>📡 MONITORAMENTO — MOTOR 6</h2><p class="sub">Sinais experimentais selecionados para acompanhamento. Mostra evolução desde o primeiro alerta; não altera os 5 motores oficiais.</p></div></div>
+        <div id="motor6WatchPanel"><div class="sub">Nenhum sinal selecionado.</div></div>
       </section>
       <section class="card" id="legCycleLabCard">
         <h2>LAB — CICLO DA PERNADA — 50 CRIPTOMOEDAS</h2>
@@ -239,7 +244,7 @@
     <script src="sr-intelligence.js?v=1"></script>
     <script src="early-leg-motor-v1.js?v=1"></script>
     <script src="motor6-signal-monitor.js?v=2"></script>
-    <script src="interpretation.js?v=53"></script>
+    <script src="interpretation.js?v=54"></script>
     <script src="signal-stats.js?v=3"></script>
     <script src="exhaustion-reversal.js?v=21"></script>
     <script src="auto-focus.js?v=23"></script>
