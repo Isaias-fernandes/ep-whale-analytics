@@ -4,12 +4,12 @@
 (()=>{'use strict';const KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',TARGETS=[3,5,10,20,30,50];
 let open=[],hist=[];try{open=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(open))open=[]}catch{open=[]}try{hist=JSON.parse(localStorage.getItem(HKEY)||'[]');if(!Array.isArray(hist))hist=[]}catch{hist=[]}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(open));localStorage.setItem(HKEY,JSON.stringify(hist.slice(-500)))}catch{}};
-function map(){return window.CryptoApp?.getData?.()}function asset(sym){const m=map();return m?.get?.(sym)||m?.get?.(String(sym).replace('/',''))}
+function map(){return window.CryptoApp?.getData?.()}function norm(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}function asset(sym){const m=map();if(!m)return null;const n=norm(sym);let x=m.get?.(sym)||m.get?.(n)||m.get?.(n.replace(/USDT$/,'/USDT'));if(x)return x;for(const [k,v] of m.entries?.()||[])if(norm(k)===n||norm(v?.sym)===n||norm(v?.key)===n)return v;return null}
 function price(x){const p=+(x?.livePrice??x?.price??x?.regularMarketPrice??x?.candles?.at?.(-1)?.c);return Number.isFinite(p)&&p>0?p:NaN}
 function ret(p0,p){return Number.isFinite(p0)&&Number.isFinite(p)&&p0?((p-p0)/p0*100):NaN}
 function add(sym){
  const x=asset(sym),e=window.EPEarlyLegMotorV1?.calc?.(x),p=price(x);if(!x||!e||!Number.isFinite(p))return alert('Motor 6: dados do ativo ainda não disponíveis.');
- let o=open.find(z=>z.asset===sym);if(o){window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'));return o}
+ sym=norm(sym);let o=open.find(z=>norm(z.asset)===sym);if(o){window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'));return o}
  if(open.length>=20)return alert('Motor 6: limite de 20 sinais em acompanhamento.');
  const now=Date.now();o={id:'m6:'+sym+':'+now,asset:sym,entryAt:now,entryPrice:p,lastPrice:p,entryScore:e.score,entryPhase:e.phase,entryPattern:e.pattern,entryRsi:e.rsi,entryPreLeg:e.preLegScore,entryFutures:e.futuresScore,best:0,worst:0,targets:{},lastScore:e.score,lastPhase:e.phase,lastPattern:e.pattern,updates:0};
  open.push(o);save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:o}));return o;
