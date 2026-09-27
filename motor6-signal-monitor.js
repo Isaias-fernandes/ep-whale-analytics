@@ -3,12 +3,14 @@
  * Autoentrada: score >= 50. Encerramento manual arquiva o episódio.
  */
 (()=>{'use strict';
-const KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,MAX_OPEN=20,COOLDOWN_MS=30*60*1000;
+const API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-motor6-watch',KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,MAX_OPEN=20,COOLDOWN_MS=30*60*1000;
 let open=[],hist=[],cooldown={};
 try{open=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(open))open=[]}catch{open=[]}
 try{hist=JSON.parse(localStorage.getItem(HKEY)||'[]');if(!Array.isArray(hist))hist=[]}catch{hist=[]}
 try{cooldown=JSON.parse(localStorage.getItem(COOLDOWN_KEY)||'{}')||{}}catch{cooldown={}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(open));localStorage.setItem(HKEY,JSON.stringify(hist.slice(-500)));localStorage.setItem(COOLDOWN_KEY,JSON.stringify(cooldown))}catch{}};
+async function remote(body){try{const r=await fetch(API,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,cache:'no-store'});return r.ok?await r.json():null}catch{return null}}
+async function syncRemote(){const j=await remote();if(!j?.rows)return;const local=new Map(open.map(o=>[norm(o.asset),o]));for(const r of j.rows){const n=norm(r.asset),o=local.get(n)||{id:'m6:'+n+':shared',asset:n,targets:{}};Object.assign(o,{asset:n,source:r.source,entryAt:new Date(r.entry_at).getTime(),entryPrice:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryScore:r.entry_score,entryPhase:r.entry_phase,entryPattern:r.entry_pattern,entryRsi:r.entry_rsi,entryPreLeg:r.entry_pre_leg,entryFutures:r.entry_futures,best:+r.best_pct||0,worst:+r.worst_pct||0,targets:r.targets||{},lastScore:r.last_score,lastPhase:r.last_phase,lastPattern:r.last_pattern});local.set(n,o)}open=[...local.values()].filter(o=>j.rows.some(r=>norm(r.asset)===norm(o.asset)));save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'))}
 function map(){return window.CryptoApp?.getData?.()}
 function norm(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function asset(sym){const m=map();if(!m)return null;const n=norm(sym);let x=m.get?.(sym)||m.get?.(n)||m.get?.(n.replace(/USDT$/,'/USDT'));if(x)return x;for(const [k,v] of m.entries?.()||[])if(norm(k)===n||norm(v?.sym)===n||norm(v?.key)===n)return v;return null}
@@ -22,13 +24,13 @@ function add(sym,opts={}){
  const n=norm(sym),existing=open.find(z=>norm(z.asset)===n);if(existing)return existing;
  if(open.length>=MAX_OPEN){if(!opts.silent)alert('Motor 6: limite de '+MAX_OPEN+' sinais em acompanhamento.');return null}
  const o=snapshot(n,opts.source||'manual');if(!o){if(!opts.silent)alert('Motor 6: dados do ativo ainda não disponíveis.');return null}
- open.push(o);save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:o}));return o;
+ open.push(o);save();remote({action:'upsert',record:o});window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:o}));return o;
 }
 function close(id,reason='MANUAL'){
  const i=open.findIndex(z=>z.id===id);if(i<0)return false;
  const o=open[i],x=asset(o.asset),p=price(x),exit=Number.isFinite(p)?p:o.lastPrice,now=Date.now();
  const archived={...o,exitAt:now,exitPrice:exit,result:ret(o.entryPrice,exit),closeReason:reason,status:'CLOSED'};
- hist.push(archived);open.splice(i,1);cooldown[norm(o.asset)]=now;save();
+ hist.push(archived);open.splice(i,1);cooldown[norm(o.asset)]=now;save();remote({action:'close',asset:o.asset,exitPrice:exit,resultPct:archived.result,reason});
  window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:{closed:archived}}));return true;
 }
 function autoScan(){
@@ -44,9 +46,9 @@ function autoScan(){
 }
 function tick(){
  for(const o of open){const x=asset(o.asset),p=price(x),e=window.EPEarlyLegMotorV1?.calc?.(x);if(!Number.isFinite(p)||!e)continue;const r=ret(o.entryPrice,p);o.lastPrice=p;o.lastScore=+e.score||0;o.lastPhase=e.phase;o.lastPattern=e.pattern;o.lastRsi=e.rsi;o.lastPreLeg=e.preLegScore;o.lastFutures=e.futuresScore;o.updates=(o.updates||0)+1;if(Number.isFinite(r)){o.best=Math.max(+o.best||0,r);o.worst=Math.min(+o.worst||0,r);for(const t of TARGETS)if(r>=t&&!o.targets[t])o.targets[t]={at:Date.now(),price:p,hours:+((Date.now()-o.entryAt)/36e5).toFixed(2)}}}
- save();autoScan();window.dispatchEvent(new CustomEvent('ep-motor6-watch-updated'));
+ save();open.forEach(o=>remote({action:'upsert',record:o}));autoScan();window.dispatchEvent(new CustomEvent('ep-motor6-watch-updated'));
 }
 ['crypto-data-updated','ep-early-leg-motor-ready','ep-early-leg-updated'].forEach(ev=>window.addEventListener(ev,autoScan));
-setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);
-window.EPMotor6Watch={add,close,tick,autoScan,get:()=>open,history:()=>hist,TARGETS,AUTO_SCORE};window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
+setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);setInterval(()=>{if(!document.hidden)syncRemote()},15000);
+window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,TARGETS,AUTO_SCORE};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
 })();
