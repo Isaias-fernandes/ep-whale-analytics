@@ -272,8 +272,23 @@
   function bindTrack(el) {
     el.querySelectorAll("[data-m6-track]").forEach(b => b.onclick = () => {
       const status = el.querySelector('[data-m6-status="'+b.dataset.asset+'"]');
-      if (!window.EPMotor6Watch?.add) { if(status) status.textContent=' Monitor carregando… tente novamente em 1 segundo.'; return; }
-      const o = window.EPMotor6Watch.add(b.dataset.asset);
+      let monitor = window.EPMotor6Watch;
+      if (!monitor?.add) {
+        // Fallback embutido: o botão nunca depende do arquivo externo para iniciar o registro.
+        const KEY='ep_motor6_watch_v1', norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        let rows=[]; try{rows=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(rows))rows=[]}catch{rows=[]}
+        monitor={add:(sym)=>{
+          const n=norm(sym),map=window.CryptoApp?.getData?.(); let x=map?.get?.(sym)||map?.get?.(n);
+          if(!x&&map?.entries) for(const [k,v] of map.entries()) if(norm(k)===n||norm(v?.sym)===n){x=v;break}
+          const e=window.EPEarlyLegMotorV1?.calc?.(x),p=+(x?.livePrice??x?.price??x?.regularMarketPrice??x?.candles?.at?.(-1)?.c);
+          if(!x||!e||!Number.isFinite(p)||p<=0){if(status)status.textContent=' Dados do ativo ainda não disponíveis.';return null}
+          let o=rows.find(z=>norm(z.asset)===n);if(o)return o;
+          const now=Date.now();o={id:'m6:'+n+':'+now,asset:n,entryAt:now,entryPrice:p,lastPrice:p,entryScore:e.score,entryPhase:e.phase,entryPattern:e.pattern,entryRsi:e.rsi,entryPreLeg:e.preLegScore,entryFutures:e.futuresScore,best:0,worst:0,targets:{},lastScore:e.score,lastPhase:e.phase};
+          rows.push(o);try{localStorage.setItem(KEY,JSON.stringify(rows))}catch{};return o;
+        }};
+        window.EPMotor6Watch=monitor;
+      }
+      const o = monitor.add(b.dataset.asset);
       if (o) {
         b.textContent='✅ SINAL EM MONITORAMENTO';
         b.disabled=true;
@@ -287,7 +302,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 52, errors: {} };
+  const diagnostics = { version: 53, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
