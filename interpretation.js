@@ -161,6 +161,19 @@
     const e=z.e,name=String(z.key).replace("USDT","/USDT");
     return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button type="button" class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button><span class="sub" data-m6-status="${z.key}"></span></div></div>`;
   }
+  function motor6WatchPanel() {
+    let rows=[]; try { rows=window.EPMotor6Watch?.get?.() || JSON.parse(localStorage.getItem('ep_motor6_watch_v1')||'[]'); } catch { rows=[]; }
+    if(!Array.isArray(rows)||!rows.length) return '<div class="m6-watch-empty">Nenhum sinal selecionado. Use “📡 MONITORAR SINAL MOTOR 6”.</div>';
+    return '<div class="m6-watch-grid">'+rows.map(o=>{
+      const r=o.entryPrice?((+o.lastPrice-+o.entryPrice)/+o.entryPrice*100):0;
+      const targets=[3,5,10,20,30,50].map(t=>'<span class="'+(o.targets?.[t]?'m6-hit':'')+'">+'+t+'% '+(o.targets?.[t]?'✓':'○')+'</span>').join(' ');
+      return '<div class="m6-watch-card"><div class="m6-watch-head"><b>'+String(o.asset).replace('USDT','/USDT')+'</b><span>'+String(o.lastPhase||o.entryPhase||'MONITORANDO')+'</span></div><div class="m6-watch-main">'+(+o.entryPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' → '+(+o.lastPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' <b class="'+(r>=0?'m6-pos':'m6-neg')+'">'+(r>=0?'+':'')+r.toFixed(2)+'%</b></div><div class="compact-info"><b>Score:</b> '+(o.entryScore??'—')+' → '+(o.lastScore??'—')+' • <b>Padrão:</b> '+(o.lastPattern||o.entryPattern||'—')+'<br><b>RSI inicial:</b> '+fmt(o.entryRsi)+' • <b>PRE-LEG:</b> '+(o.entryPreLeg??'—')+' • <b>Futuros:</b> '+(o.entryFutures??'—')+'<br><b>MFE:</b> +'+(+o.best||0).toFixed(2)+'% • <b>MAE:</b> '+(+o.worst||0).toFixed(2)+'%</div><div class="m6-targets">'+targets+'</div><button type="button" class="lop-btn lop-close" data-m6-close="'+o.id+'">ENCERRAR MONITORAMENTO</button></div>';
+    }).join('')+'</div>';
+  }
+  function renderMotor6Watch() {
+    const el=document.getElementById('motor6WatchPanel'); if(!el)return; el.innerHTML=motor6WatchPanel();
+    el.querySelectorAll('[data-m6-close]').forEach(b=>b.onclick=()=>{window.EPMotor6Watch?.close?.(b.dataset.m6Close);renderMotor6Watch();});
+  }
   function trackButton(x, market) {
     let a = market === "crypto" ? x?.sym || x?.key : x?.ticker || x?.key;
     if (!a) return "";
@@ -292,7 +305,7 @@
       if (o) {
         b.textContent='✅ SINAL EM MONITORAMENTO';
         b.disabled=true;
-        if(status) status.textContent=' Registro iniciado.';
+        if(status) status.textContent=' Registro iniciado.'; renderMotor6Watch(); document.getElementById('motor6WatchSection')?.scrollIntoView({behavior:'smooth',block:'center'});
       }
     });
     el.querySelectorAll("[data-live-track]").forEach(
@@ -302,7 +315,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 53, errors: {} };
+  const diagnostics = { version: 54, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
@@ -358,6 +371,7 @@
       "ep-early-leg-updated",
       "ep-motor6-watch-ready",
       "ep-motor6-watch-changed",
+      "ep-motor6-watch-updated",
     ].forEach((ev) => window.addEventListener(ev, render));
     window.addEventListener("ep-central-focus", (ev) => {
       let d = ev.detail || {};
@@ -374,6 +388,9 @@
     setInterval(() => {
       if (!document.hidden) render();
     }, 4e3);
+    renderMotor6Watch();
+    window.addEventListener("ep-motor6-watch-changed", renderMotor6Watch);
+    window.addEventListener("ep-motor6-watch-updated", renderMotor6Watch);
     window.EPInterpretation = { render, getStatus: () => ({ ...diagnostics, errors: { ...diagnostics.errors } }) };
     render();
     window.EPCentralFocus = {
