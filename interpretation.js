@@ -161,8 +161,15 @@
     const e=z.e,name=String(z.key).replace("USDT","/USDT");
     return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button type="button" class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button><span class="sub" data-m6-status="${z.key}"></span></div></div>`;
   }
+  const motor6Immediate = new Map();
+  function motor6Rows() {
+    let stored=[], live=[]; try{stored=JSON.parse(localStorage.getItem('ep_motor6_watch_v1')||'[]')}catch{}
+    try{live=window.EPMotor6Watch?.get?.()||[]}catch{}
+    const all=[...(Array.isArray(stored)?stored:[]),...(Array.isArray(live)?live:[]),...motor6Immediate.values()], out=new Map();
+    all.forEach(o=>{if(o?.id||o?.asset)out.set(o.id||o.asset,o)}); return [...out.values()];
+  }
   function motor6WatchPanel() {
-    let rows=[]; try { rows=window.EPMotor6Watch?.get?.() || JSON.parse(localStorage.getItem('ep_motor6_watch_v1')||'[]'); } catch { rows=[]; }
+    let rows=motor6Rows();
     if(!Array.isArray(rows)||!rows.length) return '<div class="m6-watch-empty">Nenhum sinal selecionado. Use “📡 MONITORAR SINAL MOTOR 6”.</div>';
     return '<div class="m6-watch-grid">'+rows.map(o=>{
       const r=o.entryPrice?((+o.lastPrice-+o.entryPrice)/+o.entryPrice*100):0;
@@ -303,6 +310,7 @@
       }
       const o = monitor.add(b.dataset.asset);
       if (o) {
+        motor6Immediate.set(o.id||o.asset,o);
         b.textContent='✅ SINAL EM MONITORAMENTO';
         b.disabled=true;
         if(status) status.textContent=' Registro iniciado.'; renderMotor6Watch(); document.getElementById('motor6WatchSection')?.scrollIntoView({behavior:'smooth',block:'center'});
@@ -315,7 +323,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 54, errors: {} };
+  const diagnostics = { version: 55, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
