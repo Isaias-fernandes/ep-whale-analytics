@@ -179,7 +179,13 @@
   }
   function renderMotor6Watch() {
     const el=document.getElementById('motor6WatchPanel'); if(!el)return; el.innerHTML=motor6WatchPanel();
-    el.querySelectorAll('[data-m6-close]').forEach(b=>b.onclick=()=>{window.EPMotor6Watch?.close?.(b.dataset.m6Close);renderMotor6Watch();});
+    el.querySelectorAll('[data-m6-close]').forEach(b=>b.onclick=()=>{
+      const id=b.dataset.m6Close, card=b.closest('.m6-watch-card');
+      if(card){card.style.opacity='.45';b.disabled=true;b.textContent='ENCERRANDO…'}
+      const ok=window.EPMotor6Watch?.close?.(id,'MANUAL');
+      if(ok!==false){motor6Immediate.delete(id);renderMotor6Watch()}
+      else {if(card)card.style.opacity='1';b.disabled=false;b.textContent='ENCERRAR MONITORAMENTO'}
+    });
   }
   function trackButton(x, market) {
     let a = market === "crypto" ? x?.sym || x?.key : x?.ticker || x?.key;
@@ -323,7 +329,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 55, errors: {} };
+  const diagnostics = { version: 56, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
