@@ -174,7 +174,7 @@
     return '<div class="m6-watch-grid">'+rows.map(o=>{
       const r=o.entryPrice?((+o.lastPrice-+o.entryPrice)/+o.entryPrice*100):0;
       const targets=[3,5,10,20,30,50].map(t=>'<span class="'+(o.targets?.[t]?'m6-hit':'')+'">+'+t+'% '+(o.targets?.[t]?'✓':'○')+'</span>').join(' ');
-      return '<div class="m6-watch-card"><div class="m6-watch-head"><b>'+String(o.asset).replace('USDT','/USDT')+'</b><span>'+String(o.lastPhase||o.entryPhase||'MONITORANDO')+'</span></div><div class="m6-watch-main">'+(+o.entryPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' → '+(+o.lastPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' <b class="'+(r>=0?'m6-pos':'m6-neg')+'">'+(r>=0?'+':'')+r.toFixed(2)+'%</b></div><div class="compact-info"><b>Score:</b> '+(o.entryScore??'—')+' → '+(o.lastScore??'—')+' • <b>Padrão:</b> '+(o.lastPattern||o.entryPattern||'—')+'<br><b>RSI inicial:</b> '+fmt(o.entryRsi)+' • <b>PRE-LEG:</b> '+(o.entryPreLeg??'—')+' • <b>Futuros:</b> '+(o.entryFutures??'—')+'<br><b>MFE:</b> +'+(+o.best||0).toFixed(2)+'% • <b>MAE:</b> '+(+o.worst||0).toFixed(2)+'%</div><div class="m6-targets">'+targets+'</div><button type="button" class="lop-btn lop-close" data-m6-close="'+o.id+'">ENCERRAR MONITORAMENTO</button></div>';
+      const dir=o.lastDir||o.entryDir||'BUY',dirLabel=dir==='SELL'?'🔴 BAIXA / VENDA':'🟢 ALTA / COMPRA';return '<div class="m6-watch-card"><div class="m6-watch-head"><b>'+String(o.asset).replace('USDT','/USDT')+'</b><span>'+dirLabel+' • '+String(o.lastPhase||o.entryPhase||'MONITORANDO')+'</span></div><div class="m6-watch-main">'+(+o.entryPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' → '+(+o.lastPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' <b class="'+(r>=0?'m6-pos':'m6-neg')+'">'+(r>=0?'+':'')+r.toFixed(2)+'%</b></div><div class="compact-info"><b>Score:</b> '+(o.entryScore??'—')+' → '+(o.lastScore??'—')+' • <b>Padrão:</b> '+(o.lastPattern||o.entryPattern||'—')+'<br><b>RSI inicial:</b> '+fmt(o.entryRsi)+' • <b>PRE-LEG:</b> '+(o.entryPreLeg??'—')+' • <b>Futuros:</b> '+(o.entryFutures??'—')+'<br><b>MFE:</b> +'+(+o.best||0).toFixed(2)+'% • <b>MAE:</b> '+(+o.worst||0).toFixed(2)+'%</div><div class="m6-targets">'+targets+'</div><button type="button" class="lop-btn lop-close" data-m6-close="'+o.id+'">ENCERRAR MONITORAMENTO</button></div>';
     }).join('')+'</div>';
   }
   function renderMotor6Watch() {
@@ -329,7 +329,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 56, errors: {} };
+  const diagnostics = { version: 57, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
