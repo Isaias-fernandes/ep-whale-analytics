@@ -179,6 +179,9 @@
   }
   function renderMotor6Watch() {
     const el=document.getElementById('motor6WatchPanel'); if(!el)return; el.innerHTML=motor6WatchPanel();
+    const historyEl=document.getElementById('motor6HistoryPanel');
+    if(historyEl){const rows=window.EPMotor6Watch?.recordedHistory?.()||[];
+      historyEl.innerHTML=rows.length?'<h3>Histórico registrado — Motor 6</h3><div style="overflow-x:auto"><table><thead><tr><th>Horário</th><th>Ativo</th><th>Registro</th><th>Entrada</th><th>Direção atual</th><th>Preço</th><th>Melhor / pior</th></tr></thead><tbody>'+rows.slice(0,50).map(r=>'<tr><td>'+new Date(r.observed_at).toLocaleString('pt-BR')+'</td><td>'+String(r.asset||'').replace('USDT','/USDT')+'</td><td>'+({ENTRY:'Entrada',CLOSE:'Encerramento',DIRECTION:'Mudança de direção',TARGET:'Meta atingida',SNAPSHOT:'Acompanhamento',BASELINE:'Registro inicial'}[r.event_type]||r.event_type)+'</td><td>'+(r.entry_dir||'—')+'</td><td>'+(r.last_dir||'—')+'</td><td>'+(+r.last_price).toLocaleString('pt-BR',{maximumFractionDigits:8})+'</td><td>+'+(+r.best_pct||0).toFixed(2)+'% / '+(+r.worst_pct||0).toFixed(2)+'%</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">Aguardando registros do Motor 6.</p>'}
     el.querySelectorAll('[data-m6-close]').forEach(b=>b.onclick=()=>{
       const id=b.dataset.m6Close, card=b.closest('.m6-watch-card');
       if(card){card.style.opacity='.45';b.disabled=true;b.textContent='ENCERRANDO…'}
