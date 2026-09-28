@@ -3,7 +3,7 @@
  * Autoentrada: score >= 50. Encerramento manual arquiva o episódio.
  */
 (()=>{'use strict';
-const API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-motor6-watch',KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,MAX_OPEN=20,COOLDOWN_MS=30*60*1000;
+const API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-motor6-watch',KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,MAX_OPEN=20,AUTO_MAX=10,COOLDOWN_MS=30*60*1000;
 let open=[],hist=[],cooldown={};
 try{open=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(open))open=[]}catch{open=[]}
 try{hist=JSON.parse(localStorage.getItem(HKEY)||'[]');if(!Array.isArray(hist))hist=[]}catch{hist=[]}
@@ -22,7 +22,13 @@ function snapshot(sym,source='manual'){
 }
 function add(sym,opts={}){
  const n=norm(sym),existing=open.find(z=>norm(z.asset)===n);if(existing)return existing;
- if(open.length>=MAX_OPEN){if(!opts.silent)alert('Motor 6: limite de '+MAX_OPEN+' sinais em acompanhamento.');return null}
+ if(open.length>=MAX_OPEN){
+   if((opts.source||'manual')==='manual'){
+     const candidates=open.filter(z=>String(z.source||'').startsWith('auto-')).sort((a,b)=>(+a.lastScore||+a.entryScore||0)-(+b.lastScore||+b.entryScore||0));
+     const drop=candidates[0];if(drop)close(drop.id,'SUBSTITUIDO_POR_SELECAO_MANUAL');
+     else {if(!opts.silent)alert('Motor 6: limite de '+MAX_OPEN+' sinais manuais em acompanhamento.');return null}
+   } else return null;
+ }
  const o=snapshot(n,opts.source||'manual');if(!o){if(!opts.silent)alert('Motor 6: dados do ativo ainda não disponíveis.');return null}
  open.push(o);save();remote({action:'upsert',record:o});window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:o}));return o;
 }
@@ -37,7 +43,7 @@ function autoScan(){
  const m=map();if(!m?.entries||!window.EPEarlyLegMotorV1?.calc)return;
  const now=Date.now();
  for(const [key,x] of m.entries()){
-   if(open.length>=MAX_OPEN)break;
+   if(open.length>=MAX_OPEN||open.filter(o=>String(o.source||'').startsWith('auto-')).length>=AUTO_MAX)break;
    const sym=norm(key||x?.sym||x?.key);if(!sym||open.some(o=>norm(o.asset)===sym))continue;
    if(now-(+cooldown[sym]||0)<COOLDOWN_MS)continue;
    let e;try{e=window.EPEarlyLegMotorV1.calc(x)}catch{continue}
@@ -50,5 +56,5 @@ function tick(){
 }
 ['crypto-data-updated','ep-early-leg-motor-ready','ep-early-leg-updated'].forEach(ev=>window.addEventListener(ev,autoScan));
 setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);setInterval(()=>{if(!document.hidden)syncRemote()},15000);
-window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,TARGETS,AUTO_SCORE};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
+window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,TARGETS,AUTO_SCORE,MAX_OPEN,AUTO_MAX};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
 })();
