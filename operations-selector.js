@@ -34,6 +34,9 @@
      let a=$("#lopAsset").value,status=$("#lopActionStatus"); if(!a)return;
      selected=a;try{localStorage.setItem(SELECTED_KEY,a)}catch{}
      preview();
+     // MOSTRAR ATIVO deve fixar imediatamente o ativo escolhido na Central de Interpretação.
+     window.EPCentralFocus?.set?.(MARKET,a);
+     window.dispatchEvent(new CustomEvent("ep-central-focus",{detail:{market:MARKET,asset:a,source:"five-motor-selector"}}));
      let op=(window.EPLiveOperations?.get?.()||[]).find(o=>o.market===MARKET&&o.asset===a);
      let card=op&&[...document.querySelectorAll("#liveOperations [data-op]")].find(n=>n.dataset.op===op.id);
      if(card){card.scrollIntoView({behavior:"smooth",block:"nearest"});status.textContent=`${String(a).replace("USDT","/USDT")} em acompanhamento.`}
