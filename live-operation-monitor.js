@@ -1,7 +1,7 @@
 (() => {
   const $ = (s) => document.querySelector(s),
     KEY = "ep_live_operations_v1",
-    HKEY = "ep_live_operations_history_v1";
+    HKEY = "ep_live_operations_history_v1", API="https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-five-motor-watch";
   let ops = [],
     hist = [];
   try {
@@ -12,6 +12,8 @@
     const savedHist = JSON.parse(localStorage.getItem(HKEY) || "[]");
     if (Array.isArray(savedHist)) hist = savedHist;
   } catch (e) { console.warn("LiveOps: histórico inválido", e); }
+  async function remote(body){try{let r=await fetch(API,{method:body?"POST":"GET",headers:body?{"Content-Type":"application/json"}:undefined,body:body?JSON.stringify(body):undefined,cache:"no-store"});return r.ok?await r.json():null}catch{return null}}
+  async function syncRemote(){let j=await remote();if(!j?.rows)return;let merged=[];for(const r of j.rows.slice(0,10)){let local=ops.find(o=>o.asset===r.asset&&o.market===(r.market||"crypto"));merged.push(local||{id:`${r.market||"crypto"}:${r.asset}:shared`,market:r.market||"crypto",asset:r.asset,dir:r.direction||"BUY",entry:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryAt:new Date(r.entry_at).getTime(),entryMotors:+r.entry_motors||0,peakMotors:+r.peak_motors||0,entryScore:+r.entry_score||0,entryGate:+r.entry_gate||0,maxGate:+r.max_gate||0,lastMotors:+r.last_motors||0,lastTs:Date.now(),durations:r.durations||{},best:+r.best_pct||0,worst:+r.worst_pct||0})}ops=merged;save();rebuild();window.dispatchEvent(new CustomEvent("live-operations-changed"))}
   const save = () => {
     try {
       localStorage.setItem(KEY, JSON.stringify(ops));
@@ -237,6 +239,7 @@
     let created = ops.at(-1);
     // Salva antes das atualizações da tela para manter a seleção ao navegar ou recarregar.
     save();
+    remote({action:"upsert",asset:created.asset,record:created});
     let el = mountCardNow(created);
     window.dispatchEvent(new CustomEvent("live-operations-changed"));
     if (el) el.scrollIntoView({ behavior: "auto", block: "nearest" });
@@ -247,6 +250,7 @@
     let i = ops.findIndex((o) => o.id === id);
     if (i < 0) return;
     let o = ops[i];
+    remote({action:"close",asset:o.asset,exitPrice:o.lastPrice,resultPct:pnl(o,o.lastPrice)});
     // Resposta visual imediata: retira o cartão antes de qualquer cálculo auxiliar.
     let cardEl = [...document.querySelectorAll("[data-op]")].find((node) => node.dataset.op === id);
     if (cardEl) cardEl.remove();
@@ -293,6 +297,7 @@
       o.worst = Math.min(+o.worst || 0, r);
     }
     save();
+    remote({action:"upsert",asset:o.asset,record:o});
     refreshFields();
   }
   function init() {
@@ -300,9 +305,9 @@
     rebuild();
     refreshFields();
     window.dispatchEvent(new CustomEvent("live-operations-ready"));
-    setInterval(() => {
-      if (!document.hidden) tick();
-    }, 750);
+    setInterval(() => { if (!document.hidden) tick(); }, 750);
+    setInterval(() => { if (!document.hidden) syncRemote(); }, 15000);
+    syncRemote();
   }
   setTimeout(init, 100);
   window.EPLiveOperations = {
