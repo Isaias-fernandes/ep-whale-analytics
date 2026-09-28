@@ -117,7 +117,9 @@
     let root = $("#liveOperations");
     if (!root) return;
     let sig = ops.map((o) => `${o.id}:${o.asset}:${o.market}`).join("|");
-    if (root.dataset.sig === sig) return;
+    if (root.dataset.sig === sig &&
+        root.querySelectorAll("[data-op]").length === ops.length &&
+        ops.every(o => [...root.querySelectorAll("[data-op]")].some(el => el.dataset.op === o.id))) return;
     root.dataset.sig = sig;
     $("#lopCount").textContent =
       `${ops.length}/10 aberta${ops.length === 1 ? "" : "s"}`;
@@ -233,11 +235,12 @@
       worst: 0,
     });
     let created = ops.at(-1);
-    // Insere o cartão no mesmo clique; persistência e cálculos complementares vêm depois.
+    // Salva antes das atualizações da tela para manter a seleção ao navegar ou recarregar.
+    save();
     let el = mountCardNow(created);
     window.dispatchEvent(new CustomEvent("live-operations-changed"));
     if (el) el.scrollIntoView({ behavior: "auto", block: "nearest" });
-    setTimeout(() => { save(); refreshFields(); }, 0);
+    setTimeout(refreshFields, 0);
     return created;
   }
   function close(id) {
