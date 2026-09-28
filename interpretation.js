@@ -314,12 +314,12 @@
         }};
         window.EPMotor6Watch=monitor;
       }
-      const o = monitor.add(b.dataset.asset);
+      const before=(monitor.get?.()||[]).find(x=>String(x.asset||'').replace(/[^A-Z0-9]/gi,'').toUpperCase()===String(b.dataset.asset||'').replace(/[^A-Z0-9]/gi,'').toUpperCase());const o = monitor.add(b.dataset.asset);
       if (o) {
         motor6Immediate.set(o.id||o.asset,o);
         b.textContent='✅ SINAL EM MONITORAMENTO';
         b.disabled=true;
-        if(status) status.textContent=' Registro iniciado.'; renderMotor6Watch(); document.getElementById('motor6WatchSection')?.scrollIntoView({behavior:'smooth',block:'center'});
+        if(status) status.textContent=before?' Ativo já estava em monitoramento.':' Registro iniciado e sincronizado.'; renderMotor6Watch(); document.getElementById('motor6WatchSection')?.scrollIntoView({behavior:'smooth',block:'center'});
       }
     });
     el.querySelectorAll("[data-live-track]").forEach(
@@ -329,7 +329,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 57, errors: {} };
+  const diagnostics = { version: 58, errors: {} };
   function marketCard(market) {
     try {
       const app = market === "crypto" ? window.CryptoApp : window.B3App;
