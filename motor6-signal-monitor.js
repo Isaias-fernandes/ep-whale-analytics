@@ -4,13 +4,13 @@
  */
 (()=>{'use strict';
 const API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-motor6-watch',KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,MAX_OPEN=20,COOLDOWN_MS=30*60*1000;
-let open=[],hist=[],cooldown={};
+let open=[],hist=[],remoteHistory=[],cooldown={};
 try{open=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(open))open=[]}catch{open=[]}
 try{hist=JSON.parse(localStorage.getItem(HKEY)||'[]');if(!Array.isArray(hist))hist=[]}catch{hist=[]}
 try{cooldown=JSON.parse(localStorage.getItem(COOLDOWN_KEY)||'{}')||{}}catch{cooldown={}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(open));localStorage.setItem(HKEY,JSON.stringify(hist.slice(-500)));localStorage.setItem(COOLDOWN_KEY,JSON.stringify(cooldown))}catch{}};
 async function remote(body){try{const r=await fetch(API,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,cache:'no-store'});return r.ok?await r.json():null}catch{return null}}
-async function syncRemote(){const j=await remote();if(!j?.rows)return;const local=new Map(open.map(o=>[norm(o.asset),o]));for(const r of j.rows){const n=norm(r.asset),o=local.get(n)||{id:'m6:'+n+':shared',asset:n,targets:{}};Object.assign(o,{asset:n,source:r.source,entryAt:new Date(r.entry_at).getTime(),entryPrice:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryScore:r.entry_score,entryDir:r.entry_dir||'BUY',entryPhase:r.entry_phase,entryPattern:r.entry_pattern,entryRsi:r.entry_rsi,entryPreLeg:r.entry_pre_leg,entryFutures:r.entry_futures,best:+r.best_pct||0,worst:+r.worst_pct||0,targets:r.targets||{},lastScore:r.last_score,lastDir:r.last_dir||r.entry_dir||'BUY',lastPhase:r.last_phase,lastPattern:r.last_pattern});local.set(n,o)}open=[...local.values()].filter(o=>j.rows.some(r=>norm(r.asset)===norm(o.asset)));save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'))}
+async function syncRemote(){const j=await remote();if(!j?.rows)return;remoteHistory=Array.isArray(j.history)?j.history:[];const local=new Map(open.map(o=>[norm(o.asset),o]));for(const r of j.rows){const n=norm(r.asset),o=local.get(n)||{id:'m6:'+n+':shared',asset:n,targets:{}};Object.assign(o,{asset:n,source:r.source,entryAt:new Date(r.entry_at).getTime(),entryPrice:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryScore:r.entry_score,entryDir:r.entry_dir||'BUY',entryPhase:r.entry_phase,entryPattern:r.entry_pattern,entryRsi:r.entry_rsi,entryPreLeg:r.entry_pre_leg,entryFutures:r.entry_futures,best:+r.best_pct||0,worst:+r.worst_pct||0,targets:r.targets||{},lastScore:r.last_score,lastDir:r.last_dir||r.entry_dir||'BUY',lastPhase:r.last_phase,lastPattern:r.last_pattern});local.set(n,o)}open=[...local.values()].filter(o=>j.rows.some(r=>norm(r.asset)===norm(o.asset)));save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'))}
 function map(){return window.CryptoApp?.getData?.()}
 function norm(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function asset(sym){const m=map();if(!m)return null;const n=norm(sym);let x=m.get?.(sym)||m.get?.(n)||m.get?.(n.replace(/USDT$/,'/USDT'));if(x)return x;for(const [k,v] of m.entries?.()||[])if(norm(k)===n||norm(v?.sym)===n||norm(v?.key)===n)return v;return null}
@@ -50,5 +50,5 @@ function tick(){
 }
 ['crypto-data-updated','ep-early-leg-motor-ready','ep-early-leg-updated'].forEach(ev=>window.addEventListener(ev,autoScan));
 setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);setInterval(()=>{if(!document.hidden)syncRemote()},15000);
-window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,TARGETS,AUTO_SCORE,MAX_OPEN};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
+window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,recordedHistory:()=>remoteHistory,TARGETS,AUTO_SCORE,MAX_OPEN};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
 })();
