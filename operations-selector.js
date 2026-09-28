@@ -31,7 +31,7 @@
    root.parentElement?.insertBefore(box,root);
    $("#lopAsset").onchange=()=>{selected=$("#lopAsset").value;preview()};
    $("#lopShow").onclick=()=>{let m=MARKET,a=$("#lopAsset").value;preview();focus(m,a);$("#lopActionStatus").textContent=a?`${String(a).replace("USDT","/USDT")} selecionado para leitura na Central.`:""};
-   $("#lopAddManual").onclick=()=>{let m=$("#lopMarket").value,a=$("#lopAsset").value,status=$("#lopActionStatus");if(!a)return;
+   $("#lopAddManual").onclick=()=>{let m=MARKET,a=$("#lopAsset").value,status=$("#lopActionStatus");if(!a)return;
      let name=String(a).replace("USDT","/USDT");
      status.textContent=`⏱ Iniciando ${name}...`;
      // A própria add() é síncrona; confirme no mesmo clique, sem esperar frame/ciclo.
