@@ -14,19 +14,20 @@
   const intervals=['1m','5m','1h','1d'];
   const settled=await Promise.allSettled(intervals.map(interval=>request(`https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${interval==='1d'?300:1000}`)));
   const result={};settled.forEach((r,i)=>{if(r.status==='fulfilled'&&Array.isArray(r.value)&&r.value.length)result[intervals[i]]=W.analyze(r.value)});
-  if(!result['1m'])throw Error('Preço atual indisponível');
+  if(!result['1m']?.length)throw Error('Preço atual indisponível');
+  if(Date.now()-result['1m'].at(-1).t>180000)throw Error('Candles da fonte estão atrasados');
   cache.set(symbol,{at:Date.now(),data:result});return result;
  }
  function renderLive(c){
   const now=Date.now(),price=c['1m'].at(-1).c;
   const rows=W.horizons.map(([label,minutes])=>{
-   const base=minutes<=15?c['1m']:minutes===30?c['5m']:minutes<1440?c['1h']:c['1d'];
-   const baseMinutes=minutes<=15?1:minutes===30?5:minutes<1440?60:1440;
+   const base=minutes<=15?c['1m']:minutes===30?c['5m']:c['1h'];
+   const baseMinutes=minutes<=15?1:minutes===30?5:60;
    if(!base)return {label,error:true};
    const cut=now-minutes*60000,windowCandles=base.filter(z=>z.t+baseMinutes*60000>cut);
    if(!windowCandles.length||base[0].t>cut)return {label,error:true};
    const m=W.metrics(windowCandles[0].o,Math.min(...windowCandles.map(z=>z.l)),Math.max(...windowCandles.map(z=>z.h)),price);
-   return {label,minutes,...m,phase:W.classify(m),ind:W.indicators(W.aggregate(base,minutes))};
+   return {label,minutes,...m,phase:W.classify(m),ind:minutes>=1440?(c['1d']?W.indicators(W.aggregate(c['1d'],minutes)):null):W.indicators(W.aggregate(base,minutes))};
   });
   el('waveRows').innerHTML=rows.map(r=>r.error?`<tr><td>${r.label}</td><td colspan="17">Fonte indisponível / janela incompleta</td></tr>`:`<tr><td><b>${r.label}</b></td><td>${r.phase}</td><td>${fmt(r.change)}%</td><td>${fmt(r.low,8)}</td><td>${fmt(r.high,8)}</td><td>${fmt(r.position,1)}%</td><td>${fmt(r.amplitude)}%</td><td>${fmt(r.giveback)}%</td><td>${fmt(r.supportDistance)}%</td><td>${fmt(r.resistanceDistance)}%</td><td>${fmt(r.ind?.rsi,1)}</td><td>${fmt(r.ind?.cci,1)}</td><td>${fmt(r.ind?.macd,8)}</td><td>${fmt(r.ind?.adx,1)}</td><td>${fmt(r.ind?.atr,8)}</td><td>${fmt(r.ind?.obv,0)}</td><td>${fmt(r.ind?.volume,2)}</td><td>${fmt(r.ind?.volumeRatio,2)}</td></tr>`).join('');
   const valid=rows.filter(r=>!r.error),up=valid.filter(r=>r.change>0).length;

@@ -2,7 +2,7 @@
 
 Painel independente em `index.html`, acima do Motor 6. Não chama funções de alteração nem redefine interfaces dos motores. Os cálculos próprios ficam em `core.js`.
 
-O painel consulta candles spot USDT da Binance para o ativo selecionado (4 chamadas por minuto, cache local, sem atualizar em aba oculta). Mede 13 janelas de duração e agrega candles UTC para RSI14, CCI14, MACD12/26/9, ADX14, ATR14 e OBV. Candles em formação são provisórios; as bordas das janelas usam resolução de 1 minuto, 5 minutos, 1 hora ou 1 dia. Máxima/mínima são referências e não suporte/resistência validado por pivôs. Fases são descrições simples de localização e deslocamento; não são probabilidades, ordem de compra nem um modelo treinado. Não persiste os indicadores do navegador ou resultados dos motores.
+O painel consulta candles spot USDT da Binance para o ativo selecionado (4 chamadas por minuto, cache local, sem atualizar em aba oculta). Mede 13 janelas de duração e agrega candles UTC para RSI14, CCI14, MACD12/26/9, ADX14, ATR14 e OBV. Candles em formação são provisórios; as bordas das janelas usam resolução de 1 minuto, 5 minutos ou 1 hora. Máxima/mínima são referências e não suporte/resistência validado por pivôs. Fases são descrições simples de localização e deslocamento; não são probabilidades, ordem de compra nem um modelo treinado. Não persiste os indicadores do navegador ou resultados dos motores.
 
 ## Histórico separado no projeto Gestão Farmacêutica
 
