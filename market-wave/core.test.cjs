@@ -1,0 +1,6 @@
+const test=require('node:test'),assert=require('node:assert/strict'),W=require('./core');
+test('range position and drawdown use different denominators',()=>{const m=W.metrics(80,80,100,84);assert.equal(m.position,20);assert.equal(m.giveback,16);assert.equal(m.recovered,5);assert.equal(m.change,5)});
+test('flat range and unknown opening never imply a trade',()=>{const m=W.metrics(null,10,10,10);assert.equal(m.position,null);assert.equal(m.change,null);assert.equal(W.classify(m),'SEM CONFIRMAÇÃO')});
+test('H5 groups by UTC time and drops incomplete initial bucket',()=>{const c=Array.from({length:11},(_,i)=>({t:(i+1)*3600000,o:i,h:i+2,l:i-1,c:i+1,v:1}));const a=W.aggregate(c,300);assert.equal(a.length,2);assert.equal(a[0].t,5*3600000);assert.equal(a[0].v,5)});
+test('flat candles have neutral RSI and ADX',()=>{const c=Array.from({length:100},(_,i)=>({t:i*60000,o:10,h:10,l:10,c:10,v:1})),x=W.indicators(c);assert.equal(x.rsi,50);assert.equal(x.adx,0);assert.equal(x.atr,0);assert.equal(x.macd,0)});
+test('rising candles show direction without fabricated probability',()=>{const c=Array.from({length:100},(_,i)=>({t:i*60000,o:i+1,h:i+2,l:i+1,c:i+2,v:10})),x=W.indicators(c);assert.equal(x.rsi,100);assert.equal(x.adx,100);assert.ok(x.obv>0);assert.equal(W.horizons.length,13)});
