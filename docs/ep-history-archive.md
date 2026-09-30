@@ -23,7 +23,7 @@ Estado em 30/09/2026:
 Executa diariamente às 01h UTC (22h de Brasília do dia anterior), antes da limpeza às 03h17 UTC.
 Exporta `public.ep_*` do EP Analítico e somente o schema `ep_market_history` da Gestão Farmacêutica.
 Não seleciona pacientes, medicamentos, estoque ou dispensações.
-Leitura pela Management API em páginas de 500 linhas, usando a chave primária. Cada tabela tem um limite de visibilidade de transações para excluir inserções posteriores. Não mantém uma transação MVCC aberta. Confere contagem inicial, exportada e final; se atualizações ou exclusões invalidarem a cópia, tenta novamente até três vezes e depois falha sem comprovante. Horários de cada tabela constam no manifesto. Os arquivos são divididos em blocos e compactados.
+Leitura pela Management API em páginas de 1.000 linhas, usando a chave primária e o maior identificador existente no início de cada tabela como limite. Novas chaves acima desse limite ficam para a próxima cópia. Atualizações de valores são lidas conforme cada página é exportada; não é um snapshot global nem um backup MVCC de um instante único. As chaves primárias devem permanecer estáveis. Confere contagem inicial, exportada e final no intervalo; se não conferir, tenta até três vezes e falha sem comprovante. Horários por tabela constam no manifesto. Os arquivos são divididos em blocos e compactados.
 Cada arquivo é baixado do GitHub novamente e seu tamanho/SHA-256 é conferido antes do comprovante.
 Arquivos ficam como assets de Releases no repositório privado, evitando crescimento do histórico Git do código.
 Em falha, não grava comprovante. Sem comprovante recente, a limpeza do EP Analítico não apaga os registros.
@@ -41,3 +41,5 @@ Releases incompletas podem permanecer como drafts e não liberam a limpeza.
 ## Versão API — 30/09/2026
 Script e workflow adaptados para token único Supabase. Sintaxe, paginação, compactação e rejeição de exportação incompleta foram testadas; consulta de visibilidade testada no banco. Execução completa com token do usuário ainda precisa ser confirmada em Actions. Use Run workflow em main (reexecutar a execução antiga mantém o programa antigo).
 A Management API de consultas está em beta e pode mudar. O token Database permite operações amplas nos dois bancos; o programa limita a leitura aos históricos EP e a escrita ao comprovante privado. Não exporta tabelas da farmácia.
+
+Correção 30/09/2026: uma execução falhou porque ep_early_leg_v2_events recebeu atualizações durante a exportação. A versão 3 do manifesto identifica a consistência como rolling-per-table-primary-key-high-watermark. Substituído filtro por xmin por limite de chave primária; acrescentado progresso a cada 10.000 registros. Testes verificaram aceitação de atualizações, paginação delimitada, tabelas vazias e rejeição de registros faltantes. Ainda é necessário validar a execução completa com os Secrets.
