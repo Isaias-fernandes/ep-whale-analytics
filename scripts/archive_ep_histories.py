@@ -84,14 +84,19 @@ def export_table(label, ref, table, root):
         raise RuntimeError("Table has no primary key: " + schema + "." + name)
     relation = ident(schema) + "." + ident(name)
     columns = ",".join("t." + ident(c["name"]) for c in pk)
-    # An insert visibility boundary is retained, not a live MVCC snapshot.
-    # Updates/deletions to boundary rows invalidate the export by count checks.
+    # Rolling export: stable primary keys define membership. Updates are read
+    # as encountered; inserts above the initial high-water mark wait for next run.
+    # This is not a point-in-time MVCC backup.
+    descending = ",".join("t." + ident(c["name"]) + " DESC" for c in pk)
     boundary = database_query(ref, f"""
-        SELECT pg_current_snapshot()::text AS visibility,
-               statement_timestamp()::text AS snapshot_at,
-               count(*)::text AS expected FROM {relation}
+        SELECT statement_timestamp()::text AS snapshot_at,
+               count(*)::text AS expected,
+               (SELECT json_build_array({columns})::text FROM {relation} t
+                ORDER BY {descending} LIMIT 1) AS upper_key FROM {relation}
     """)[0]
-    visible = "pg_visible_in_snapshot(t.xmin::text::xid8,$1::pg_snapshot)"
+    upper = json.loads(boundary["upper_key"]) if boundary["upper_key"] else []
+    upper_casts = ",".join("$" + str(i+1) + "::" + c["type"] for i,c in enumerate(pk))
+    visible = f"ROW({columns}) <= ROW({upper_casts})" if upper else "FALSE"
     expected = int(boundary["expected"])
     count, part, chunk_size, stream, last = 0, 0, 0, None, None
     files, path = [], None
@@ -103,16 +108,17 @@ def export_table(label, ref, table, root):
                           "bytes": path.stat().st_size, "sha256": digest(path)})
             stream = None
     try:
+        print(label, schema + "." + name, "starting rows:", expected, flush=True)
         while True:
-            params, after = [boundary["visibility"]], ""
+            params, after = list(upper), ""
             if last is not None:
-                casts = ",".join("$" + str(i+2) + "::" + c["type"] for i,c in enumerate(pk))
+                casts = ",".join("$" + str(i+len(pk)+1) + "::" + c["type"] for i,c in enumerate(pk))
                 after = f" AND ROW({columns}) > ROW({casts})"
                 params.extend(last)
             rows = database_query(ref,
                 f"SELECT row_to_json(t)::text AS row, "
                 f"json_build_array({columns})::text AS cursor FROM {relation} t "
-                f"WHERE {visible}{after} ORDER BY {columns} LIMIT 500", params)
+                f"WHERE {visible}{after} ORDER BY {columns} LIMIT 1000", params)
             if not rows:
                 break
             for entry in rows:
@@ -130,10 +136,12 @@ def export_table(label, ref, table, root):
             if next_cursor == last:
                 raise RuntimeError("Export cursor did not advance")
             last = next_cursor
+            if count % 10000 == 0:
+                print(label, schema + "." + name, "copied:", count, "/", expected, flush=True)
         finish()
         remaining = int(database_query(ref,
             f"SELECT count(*)::text AS count FROM {relation} t WHERE {visible}",
-            [boundary["visibility"]])[0]["count"])
+            upper)[0]["count"])
         if count != expected or remaining != expected:
             raise RuntimeError("Table changed during export: " + schema + "." + name)
     finally:
@@ -203,7 +211,7 @@ def main():
         root = Path(tmp)
         projects = [export_project(label, None, ref, root)
                     for label, env, ref in PROJECTS]
-        manifest = {"schema_version": 2, "archive_id": run_id, "projects": projects,
+        manifest = {"schema_version": 3, "consistency": "rolling-per-table-primary-key-high-watermark", "archive_id": run_id, "projects": projects,
                     "scope": "All central EP tables only; browser-local records require separate collection"}
         manifest_path = root / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
