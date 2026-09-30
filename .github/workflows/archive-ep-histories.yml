@@ -17,14 +17,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install database client
-        run: python -m pip install 'psycopg[binary]==3.2.10'
       - name: Check Python syntax
         run: python -m py_compile scripts/archive_ep_histories.py
       - name: Export, upload and verify histories
         env:
-          EP_ANALYTICS_DATABASE_URL: ${{ secrets.EP_ANALYTICS_DATABASE_URL }}
-          EP_MARKET_DATABASE_URL: ${{ secrets.EP_MARKET_DATABASE_URL }}
+          EP_SUPABASE_ACCESS_TOKEN: ${{ secrets.EP_SUPABASE_ACCESS_TOKEN }}
           EP_ARCHIVE_TOKEN: ${{ secrets.EP_ARCHIVE_TOKEN }}
           EP_ARCHIVE_REPOSITORY: ${{ secrets.EP_ARCHIVE_REPOSITORY }}
         run: python scripts/archive_ep_histories.py
