@@ -12,7 +12,8 @@
  async function candles(symbol){
   const old=cache.get(symbol);if(old&&Date.now()-old.at<60000)return old.data;
   const intervals=['1m','5m','1h','1d'];
-  const settled=await Promise.allSettled(intervals.map(interval=>request(`https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${interval==='1d'?300:1000}`)));
+  const limits={'1m':600,'5m':240,'1h':240,'1d':260};
+  const settled=await Promise.allSettled(intervals.map(interval=>request(`https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limits[interval]}`)));
   const result={};settled.forEach((r,i)=>{if(r.status==='fulfilled'&&Array.isArray(r.value)&&r.value.length)result[intervals[i]]=W.analyze(r.value)});
   if(!result['1m']?.length)throw Error('Preço atual indisponível');
   if(Date.now()-result['1m'].at(-1).t>180000)throw Error('Candles da fonte estão atrasados');
@@ -48,12 +49,25 @@
   if(busy)return;busy=true;const ticket=epoch,symbol=el('waveSymbol').value;el('waveRefresh').disabled=true;
   el('waveStatus').textContent='Atualizando leitura e verificando o gravador...';
   try{
-   const [live,history]=await Promise.allSettled([candles(symbol),request(RPC,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_symbol:symbol})})]);
-   if(ticket!==epoch)return;
-   if(live.status==='fulfilled')renderLive(live.value);
-   if(history.status==='fulfilled')renderHistory(history.value);
-   else el('waveHistoryStatus').textContent='Histórico indisponível — não confirmado. '+history.reason.message;
-   el('waveStatus').textContent=live.status==='fulfilled'?`Leitura atualizada: ${time(lastLive)} • interpretação experimental; sem probabilidade validada.`:`LEITURA ATRASADA — ${live.reason.message}. Última leitura: ${time(lastLive)}.`;
+   const livePromise=candles(symbol);
+   const historyPromise=request(RPC,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_symbol:symbol})});
+   try{
+    const live=await livePromise;
+    if(ticket!==epoch)return;
+    renderLive(live);
+    el('waveStatus').textContent=`Leitura atualizada: ${time(lastLive)} • histórico carregando em segundo plano • interpretação experimental; sem probabilidade validada.`;
+   }catch(e){
+    if(ticket!==epoch)return;
+    el('waveStatus').textContent=`LEITURA ATRASADA — ${e.message}. Última leitura: ${time(lastLive)}.`;
+   }
+   try{
+    const history=await historyPromise;
+    if(ticket!==epoch)return;
+    renderHistory(history);
+   }catch(e){
+    if(ticket!==epoch)return;
+    el('waveHistoryStatus').textContent='Histórico indisponível — não confirmado. '+e.message;
+   }
   }finally{busy=false;el('waveRefresh').disabled=false;if(ticket!==epoch)sync()}
  }
  el('waveOutcomes').addEventListener('click',async()=>{
