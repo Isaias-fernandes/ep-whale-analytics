@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Lossless EP archive in an isolated schema; only completed lab events move out."""
+"""Lossless EP archive; verified old observations move only under storage pressure."""
 import base64
+import bisect
 import datetime as dt
 import gzip
 import hashlib
@@ -18,6 +19,36 @@ TABLES = [('ep_early_leg_v2_events', 'observed_at'),
           ('ep_shadow_v3_history', 'observed_at'),
           ('ep_motor6_history', 'observed_at')]
 
+def move_verified_observations(table, fingerprints):
+    # Only historical observations move under pressure; live signal state is untouched.
+    if table == 'ep_pre_signal_history':
+        source, direction, score = 'pre-signal', "coalesce(pre_direction,'NEUTRAL')", "greatest(coalesce(pre_buy_score,0),coalesce(pre_sell_score,0))"
+    elif table == 'ep_shadow_v3_history':
+        source, direction, score = 'shadow-v3.1', "coalesce(experimental_direction,'NEUTRAL')", "experimental_score"
+    else:
+        raise ValueError('Unsupported observation table')
+    query = f"""
+      WITH fingerprints AS (
+        SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(id bigint,hash text)
+      ), removed AS (
+        DELETE FROM public.{table} t USING fingerprints f
+        WHERE t.id=f.id AND t.observed_at<now()-interval '48 hours'
+        AND encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex')=f.hash
+        RETURNING t.*
+      ), summarized AS (
+        INSERT INTO public.ep_daily_signal_summary(day,source,direction,event_type,samples,score_sum,updated_at)
+        SELECT observed_at::date,'{source}',{direction},'OBSERVATION',count(*),coalesce(sum({score}),0),now()
+        FROM removed GROUP BY 1,2,3,4
+        ON CONFLICT(day,source,direction,event_type) DO UPDATE SET
+          samples=public.ep_daily_signal_summary.samples+excluded.samples,
+          score_sum=public.ep_daily_signal_summary.score_sum+excluded.score_sum,
+          updated_at=now()
+        RETURNING 1
+      )
+      SELECT count(*)::text removed FROM removed
+    """
+    return int(database_query(SOURCE, query, [json.dumps(fingerprints)], read_only=False)[0]['removed'])
+
 def run():
     repo = os.environ['EP_ARCHIVE_REPOSITORY'].strip()
     token = os.environ['EP_ARCHIVE_TOKEN']
@@ -25,11 +56,15 @@ def run():
         raise RuntimeError('Private archive required')
     release = None
     moved = 0
+    moved_tables = set()
     # Only batches already verified on GitHub can age out of the online archive.
     database_query(DEST, "DELETE FROM ep_market_history.signal_archive_batches WHERE last_observed_at < now()-interval '7 days' AND github_release_url LIKE 'https://github.com/%/releases/%'", read_only=False)
     with tempfile.TemporaryDirectory() as tmp:
         for table, stamp in TABLES:
             last = 0
+            saved = database_query(DEST, 'SELECT DISTINCT last_id::text last_id FROM ep_market_history.signal_archive_batches WHERE source_table=$1 ORDER BY last_id', [table])
+            boundaries = sorted({int(r['last_id']) for r in saved})
+            pressure = int(database_query(SOURCE, 'SELECT pg_database_size(current_database())::text bytes')[0]['bytes']) >= 400000000
             eligibility = ('AND completed_24h IS TRUE' if table == 'ep_early_leg_v2_events'
                            else "AND status='CLOSED'" if table == 'ep_motor6_history' else '')
             boundary = database_query(SOURCE, f"SELECT now()::text cutoff,max(id)::text upper_id FROM public.{table}")[0]
@@ -37,8 +72,13 @@ def run():
             if upper is None:
                 continue
             while True:
-                rows = database_query(SOURCE, f"SELECT id::text id,to_jsonb(t)::text row,{stamp}::text observed_at FROM public.{table} t WHERE id>$1::bigint AND id<=$2::bigint AND {stamp}>=$3::timestamptz-interval '7 days' AND {stamp}<$3::timestamptz-interval '48 hours' {eligibility} ORDER BY id LIMIT 1000", [last, upper, boundary['cutoff']])
+                position = bisect.bisect_right(boundaries, last)
+                page_upper = min(int(upper), boundaries[position]) if position < len(boundaries) else int(upper)
+                rows = database_query(SOURCE, f"SELECT id::text id,to_jsonb(t)::text row,{stamp}::text observed_at FROM public.{table} t WHERE id>$1::bigint AND id<=$2::bigint AND {stamp}>=$3::timestamptz-interval '7 days' AND {stamp}<$3::timestamptz-interval '48 hours' {eligibility} ORDER BY id LIMIT 1000", [last, page_upper, boundary['cutoff']])
                 if not rows:
+                    if page_upper < int(upper):
+                        last = page_upper
+                        continue
                     break
                 last = int(rows[-1]['id'])
                 raw = ''.join(r['row']+'\n' for r in rows).encode()
@@ -62,14 +102,31 @@ def run():
                         raise RuntimeError('Destination round-trip verification failed')
                 elif found[0]['verified'] != zipped_hash or found[0]['payload_sha256'] != zipped_hash:
                     raise RuntimeError('Existing destination batch checksum mismatch')
-                # Official motor observations retain their current 7-day source window.
-                # Only finalized early-leg lab rows are removed; changed rows stay put.
-                if table == 'ep_early_leg_v2_events':
+                # Official events and live signal state stay in the source.
+                # Verified old pre/shadow observations move under storage pressure;
+                # the seven-day audit joins both databases. Changed rows stay put.
+                if table == 'ep_early_leg_v2_events' or (pressure and table in ('ep_pre_signal_history','ep_shadow_v3_history')):
                     fingerprints = [{'id':r['id'],'hash':hashlib.sha256(r['row'].encode()).hexdigest()} for r in rows]
+                    if table != 'ep_early_leg_v2_events':
+                        removed = move_verified_observations(table, fingerprints)
+                        moved += removed
+                        if removed:
+                            moved_tables.add(table)
+                        print(table, 'verified batch rows:', len(rows), 'observations moved:', removed, flush=True)
+                        continue
                     result = database_query(SOURCE, "WITH fingerprints AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(id bigint,hash text)), removed AS (DELETE FROM public.ep_early_leg_v2_events t USING fingerprints f WHERE t.id=f.id AND t.completed_24h IS TRUE AND t.observed_at<now()-interval '48 hours' AND encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex')=f.hash RETURNING t.id) SELECT count(*)::text removed FROM removed", [json.dumps(fingerprints)], read_only=False)
-                    moved += int(result[0]['removed'])
+                    removed = int(result[0]['removed'])
+                    moved += removed
+                    if removed:
+                        moved_tables.add(table)
                 print(table, 'verified batch rows:', len(rows), 'source removed:', moved, flush=True)
-        print('Transfer complete. Completed lab rows moved:', moved, flush=True)
+        for table in sorted(moved_tables):
+            try:
+                result = database_query(SOURCE, f"SET LOCAL lock_timeout='2s'; SET LOCAL statement_timeout='15s'; SET LOCAL enable_sort=off; CLUSTER public.{table} USING {table}_pkey; ANALYZE public.{table}; SELECT pg_database_size(current_database())::text database_bytes", read_only=False)
+                print('Storage maintenance:', table, result, flush=True)
+            except RuntimeError as exc:
+                print('Storage maintenance deferred:', table, str(exc), flush=True)
+        print('Transfer complete. Verified historical rows moved:', moved, flush=True)
 
 if __name__ == '__main__':
     run()
