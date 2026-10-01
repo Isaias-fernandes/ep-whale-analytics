@@ -12,7 +12,7 @@ const SOURCE={url:'https://qhgclnkctpzumtybailv.supabase.co/rest/v1/rpc/ep_audit
 const ARCHIVE={url:'https://iayxjarkeefbzjbpfurl.supabase.co/rest/v1/rpc/ep_audit_archive_page',key:'sb_publishable_7K321oiYAFOl6k6uqn5fAg_rsNH3e10'};
 const finite=v=>v==null||v===''?null:Number.isFinite(Number(v))?Number(v):null;
 const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=v=>v==null?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:6});
+const fmt=(v,d=6)=>v==null?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:d});
 const date=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
 async function hash(bytes){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('')}
 async function decodeBatch(batch){
@@ -31,7 +31,7 @@ function summarize(lines,table,asset=''){
   const r=JSON.parse(line),name=String(r.asset||r.symbol||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/USDT$/,'');
   if(target&&name!==target)continue;
   const ts=r[TABLES[table][1]],dir=r.direction||r.pre_direction||r.official_direction||r.entry_dir||r.experimental_direction;
-  const price=finite(r.price??r.entry_price??r.last_price),result=finite(r.return_pct??r.result_pct);
+  const price=finite(r.price??r.last_price??r.entry_price),result=finite(r.return_pct??r.result_pct);
   stats.n++;if(dir==='BUY')stats.buy++;if(dir==='SELL')stats.sell++;
   if(price==null||price<=0)stats.missingPrice++;
   if(!stats.first||Date.parse(ts)<Date.parse(stats.first))stats.first=ts;
@@ -57,7 +57,7 @@ function init(){
   if(!loaded)return;
   const {stats:s,rows}=summarize(loaded.lines,loaded.table,el('epAuditAsset').value);
   el('epAuditSummary').textContent=s.n+' registros únicos • Compra: '+s.buy+' • Venda: '+s.sell+' • Eventos encerrados com resultado: '+s.results+' • Favoráveis: '+s.wins+(s.results?' • Resultado médio por evento encerrado: '+fmt(s.sum/s.results)+'%':'')+' • Sem preço válido: '+s.missingPrice+' • Período registrado: '+date(s.first)+' → '+date(s.last);
-  el('epAuditRows').innerHTML=rows.map(r=>'<tr>'+[date(r.ts),r.name,r.dir,r.phase,fmt(r.price),r.motors,fmt(r.score),r.result==null?'—':fmt(r.result)+'%',r.max==null?'—':fmt(r.max)+'%',r.min==null?'—':fmt(r.min)+'%'].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('');
+  el('epAuditRows').innerHTML=rows.map(r=>'<tr>'+[date(r.ts),r.name,r.dir,r.phase,fmt(r.price,12),r.motors,fmt(r.score),r.result==null?'—':fmt(r.result)+'%',r.max==null?'—':fmt(r.max)+'%',r.min==null?'—':fmt(r.min)+'%'].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('');
  }
  el('epAuditAsset').addEventListener('input',show);
  el('epAuditCancel').onclick=()=>controller?.abort();
