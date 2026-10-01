@@ -83,6 +83,7 @@ def export_table(label, ref, table, root):
     if not pk:
         raise RuntimeError("Table has no primary key: " + schema + "." + name)
     relation = ident(schema) + "." + ident(name)
+    page_size = 1 if name == "signal_archive_batches" else 1000
     columns = ",".join("t." + ident(c["name"]) for c in pk)
     # Rolling export: stable primary keys define membership. Updates are read
     # as encountered; inserts above the initial high-water mark wait for next run.
@@ -118,7 +119,7 @@ def export_table(label, ref, table, root):
             rows = database_query(ref,
                 f"SELECT row_to_json(t)::text AS row, "
                 f"json_build_array({columns})::text AS cursor FROM {relation} t "
-                f"WHERE {visible}{after} ORDER BY {columns} LIMIT 1000", params)
+                f"WHERE {visible}{after} ORDER BY {columns} LIMIT {page_size}", params)
             if not rows:
                 break
             for entry in rows:
