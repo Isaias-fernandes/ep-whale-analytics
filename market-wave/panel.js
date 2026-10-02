@@ -1,8 +1,7 @@
 (()=>{
  'use strict';
  const W=window.EPWaveMath, root=document.getElementById('epWavePanel');if(!W||!root)return;
- const KEY='sb_publishable_7K321oiYAFOl6k6uqn5fAg_rsNH3e10';
- const RPC='https://iayxjarkeefbzjbpfurl.supabase.co/rest/v1/rpc/ep_wave_read';
+ const WAVE_API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-wave-read';
  const pairs=window.CryptoApp?.getPairs?.()||[['BTCUSDT','BTC']];
  const fmt=(v,d=2)=>v!=null&&Number.isFinite(+v)?(+v).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
  const time=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
@@ -50,7 +49,7 @@
   el('waveStatus').textContent='Atualizando leitura e verificando o gravador...';
   try{
    const livePromise=candles(symbol);
-   const historyPromise=request(RPC,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_symbol:symbol})});
+   const historyPromise=request(WAVE_API+'?action=read&symbol='+encodeURIComponent(symbol));
    try{
     const live=await livePromise;
     if(ticket!==epoch)return;
@@ -74,7 +73,7 @@
   const symbol=el('waveSymbol').value,ticket=epoch,date=new Date(el('waveAnchor').value);
   if(!Number.isFinite(date.getTime())){el('waveOutcomeStatus').textContent='Escolha a data e a hora.';return}
   el('waveOutcomes').disabled=true;
-  try{const rows=await request(RPC.replace('ep_wave_read','ep_wave_outcomes'),{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_symbol:symbol,p_at:date.toISOString()})});if(ticket!==epoch)return;
+  try{const rows=await request(WAVE_API+'?action=outcomes&symbol='+encodeURIComponent(symbol)+'&at='+encodeURIComponent(date.toISOString()));if(ticket!==epoch)return;
    el('waveOutcomeStatus').textContent=rows.length?'Retornos observados. Horizontes futuros ficam pendentes; ausência de amostra fica como lacuna.':'Não há leitura registrada nesse horário.';
    el('waveOutcomeRows').innerHTML=rows.map(r=>`<tr><td>${r.label}</td><td>${fmt(r.entry_price,8)}</td><td>${fmt(r.final_price,8)}</td><td>${r.return_pct==null?(Date.parse(r.target_at)>Date.now()?'PENDENTE':'LACUNA'):fmt(r.return_pct)+'%'}</td><td>${time(r.actual_at)}</td></tr>`).join('');
   }catch(e){el('waveOutcomeStatus').textContent='Consulta indisponível: '+e.message}finally{el('waveOutcomes').disabled=false}
