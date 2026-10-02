@@ -12,8 +12,10 @@
     const savedHist = JSON.parse(localStorage.getItem(HKEY) || "[]");
     if (Array.isArray(savedHist)) hist = savedHist;
   } catch (e) { console.warn("LiveOps: histórico inválido", e); }
-  async function remote(body){try{let r=await fetch(API,{method:body?"POST":"GET",headers:body?{"Content-Type":"application/json"}:undefined,body:body?JSON.stringify(body):undefined,cache:"no-store"});return r.ok?await r.json():null}catch{return null}}
-  async function syncRemote(){let j=await remote();if(!j?.rows)return;let merged=[];for(const r of j.rows.slice(0,10)){let local=ops.find(o=>o.asset===r.asset&&o.market===(r.market||"crypto"));merged.push(local||{id:`${r.market||"crypto"}:${r.asset}:shared`,market:r.market||"crypto",asset:r.asset,dir:r.direction||"BUY",entry:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryAt:new Date(r.entry_at).getTime(),entryMotors:+r.entry_motors||0,peakMotors:+r.peak_motors||0,entryScore:+r.entry_score||0,entryGate:+r.entry_gate||0,maxGate:+r.max_gate||0,lastMotors:+r.last_motors||0,lastTs:Date.now(),durations:r.durations||{},best:+r.best_pct||0,worst:+r.worst_pct||0})}ops=merged;save();rebuild();window.dispatchEvent(new CustomEvent("live-operations-changed"))}
+  async function remote(){try{const r=await fetch(API,{method:"GET",cache:"no-store"});return r.ok?await r.json():null}catch{return null}}
+  const DISMISSED_KEY="ep_live_operations_dismissed_v1"; let dismissed=[];
+  try{dismissed=JSON.parse(localStorage.getItem(DISMISSED_KEY)||"[]");if(!Array.isArray(dismissed))dismissed=[]}catch{dismissed=[]}
+  async function syncRemote(){const j=await remote();if(!j?.rows)return;const hidden=new Set(dismissed);for(const r of j.rows){const market=r.market||"crypto",asset=r.asset,key=market+":"+asset;if(hidden.has(key)||ops.some(o=>o.asset===asset&&o.market===market))continue;ops.push({id:key+":shared",market,asset,dir:r.direction||"BUY",entry:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryAt:new Date(r.entry_at).getTime(),entryMotors:+r.entry_motors||0,peakMotors:+r.peak_motors||0,entryScore:+r.entry_score||0,entryGate:+r.entry_gate||0,maxGate:+r.max_gate||0,lastMotors:+r.last_motors||0,lastTs:Date.now(),durations:r.durations||{},best:+r.best_pct||0,worst:+r.worst_pct||0,readOnlySeed:true})}save();rebuild();window.dispatchEvent(new CustomEvent("live-operations-changed"))}
   const save = () => {
     try {
       localStorage.setItem(KEY, JSON.stringify(ops));
@@ -176,8 +178,10 @@
       if (window.EPExitIntelligence?.evaluate) {
         o.currentPnl = Number.isFinite(r) ? r : 0;
         let z = window.EPExitIntelligence.evaluate(o, a, g);
-        el.querySelector('[data-f="exitLabel"]').textContent = z.label;
-        el.querySelector('[data-f="exitReason"]').textContent = z.reason;
+        const exitLabel = el.querySelector('[data-f="exitLabel"]');
+        const exitReason = el.querySelector('[data-f="exitReason"]');
+        if (exitLabel) exitLabel.textContent = z.label || "—";
+        if (exitReason) exitReason.textContent = z.reason || "";
       }
     });
   }
@@ -239,7 +243,7 @@
     let created = ops.at(-1);
     // Salva antes das atualizações da tela para manter a seleção ao navegar ou recarregar.
     save();
-    remote({action:"upsert",asset:created.asset,record:created});
+
     let el = mountCardNow(created);
     window.dispatchEvent(new CustomEvent("live-operations-changed"));
     if (el) el.scrollIntoView({ behavior: "auto", block: "nearest" });
@@ -250,7 +254,7 @@
     let i = ops.findIndex((o) => o.id === id);
     if (i < 0) return;
     let o = ops[i];
-    remote({action:"close",asset:o.asset,exitPrice:o.lastPrice,resultPct:pnl(o,o.lastPrice)});
+    if(o.readOnlySeed){dismissed.push(o.market+":"+o.asset);try{localStorage.setItem(DISMISSED_KEY,JSON.stringify(Array.from(new Set(dismissed))))}catch{}}
     // Resposta visual imediata: retira o cartão antes de qualquer cálculo auxiliar.
     let cardEl = [...document.querySelectorAll("[data-op]")].find((node) => node.dataset.op === id);
     if (cardEl) cardEl.remove();
@@ -297,7 +301,7 @@
       o.worst = Math.min(+o.worst || 0, r);
     }
     save();
-    remote({action:"upsert",asset:o.asset,record:o});
+
     refreshFields();
   }
   function init() {
