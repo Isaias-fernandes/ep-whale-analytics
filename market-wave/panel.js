@@ -1,7 +1,7 @@
 (()=>{
  'use strict';
  const W=window.EPWaveMath, root=document.getElementById('epWavePanel');if(!W||!root)return;
- const WAVE_API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-wave-read';
+ const WAVE_API='https://iayxjarkeefbzjbpfurl.supabase.co/functions/v1/ep-wave-read';
  const pairs=window.CryptoApp?.getPairs?.()||[['BTCUSDT','BTC']];
  const fmt=(v,d=2)=>v!=null&&Number.isFinite(+v)?(+v).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
  const time=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
