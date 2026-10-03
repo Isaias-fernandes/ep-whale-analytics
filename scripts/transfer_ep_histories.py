@@ -80,6 +80,13 @@ def run():
                         last = page_upper
                         continue
                     break
+                # Bound Management API request payloads for large motor snapshots.
+                # Splitting preserves the cursor: remaining rows are read next.
+                while len(rows) > 1:
+                    candidate = ''.join(r['row']+'\\n' for r in rows).encode()
+                    if len(gzip.compress(candidate, mtime=0)) <= 256 * 1024:
+                        break
+                    rows = rows[:max(1, len(rows)//2)]
                 last = int(rows[-1]['id'])
                 raw = ''.join(r['row']+'\n' for r in rows).encode()
                 batch_hash = hashlib.sha256(raw).hexdigest()
