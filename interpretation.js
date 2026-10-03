@@ -34,7 +34,7 @@
       `Estrutura ${a.structurePillar ? "✓" : "○"}`,
       `Fluxo ${a.flowPillar ? "✓" : "○"}`,
     ];
-    if (market === "crypto") p.push(`MTF ${a.mtfPillar ? "✓" : "○"}`);
+    p.push(`MTF ${a.mtfPillar ? "✓" : "○"}`);
     return p.join(" • ");
   }
   function gateLine(x, market) {
@@ -52,48 +52,10 @@
               : "🟢";
     return `<div class="rgate-line"><b>REVERSAL GATE — SOMENTE LEITURA:</b> <span class="rgate-${g.cls}">${icon} ${g.score}/100 — ${g.level}</span><small> • não confirma, bloqueia, rebaixa ou cancela sinais</small></div>`;
   }
-  function b3Amplitude(x) {
-    let c = x?.candles || [],
-      price = +x?.price || 0,
-      atr = +x?.atr || 0,
-      atrPct = price ? (atr / price) * 100 : 0,
-      vol = +(x?.volRatio || 1),
-      chg = Math.abs(+x?.change || 0),
-      score = 0;
-    if (chg >= 1) score += 2;
-    if (chg >= 2) score += 1;
-    if (atrPct >= 1.5) score += 2;
-    else if (atrPct >= 0.8) score += 1;
-    if (vol >= 1.5) score += 2;
-    else if (vol >= 1.2) score += 1;
-    let recent = c.slice(-21, -1),
-      last = c.at(-1),
-      br = false;
-    if (recent.length && last)
-      br =
-        last.h > Math.max(...recent.map((z) => z.h)) ||
-        last.l < Math.min(...recent.map((z) => z.l));
-    if (br) score += 2;
-    score = Math.min(11, score);
-    let dir =
-      (+x?.change || 0) > 0 ? "UP" : (+x?.change || 0) < 0 ? "DOWN" : "MIXED";
-    return {
-      score: score,
-      dir: dir,
-      level:
-        score >= 8
-          ? "EXTREMA"
-          : score >= 6
-            ? "ALTA"
-            : score >= 4
-              ? "ATENÇÃO"
-              : "NORMAL",
-      source: "B3 simplificado",
-    };
-  }
+  
   function amplitude(x, market) {
     if (!x) return null;
-    if (market === "crypto") {
+    {
       let sym = x.sym || x.key,
         p = window.EPBackend24?.get?.(),
         s = (p?.state || []).find(
@@ -109,7 +71,7 @@
           source: "backend 24/7",
         };
     }
-    return market === "b3" ? b3Amplitude(x) : null;
+    return null;
   }
   function ampLine(x, market, signalDir) {
     let f = amplitude(x, market);
@@ -191,7 +153,7 @@
     });
   }
   function trackButton(x, market) {
-    let a = market === "crypto" ? x?.sym || x?.key : x?.ticker || x?.key;
+    let a = x?.sym || x?.key;
     if (!a) return "";
     return `<div class="lop-actions"><button class="lop-btn" data-live-track="1" data-market="${market}" data-asset="${a}">📌 ACOMPANHAR ATIVO</button></div>`;
   }
@@ -249,9 +211,7 @@
   function head(key, market, a, manual) {
     let name = key
         ? String(key).replace("USDT", "/USDT")
-        : market === "crypto"
-          ? "CRIPTO"
-          : "B3",
+        : "CRIPTO",
       m = a ? `${+a.motorAgree || 0}M` : "MOTORES INDISPONÍVEIS";
     return `<div class="central-auto-head"><b>${name}</b><span>${manual ? "📌 OPERAÇÃO" : "⚡ AUTOMÁTICO"} • ${m}</span></div>`;
   }
@@ -267,7 +227,7 @@
     const lastDate = Number.isFinite(timestamp) && timestamp > 0
       ? new Date(timestamp > 1e12 ? timestamp : timestamp * 1000).toLocaleDateString("pt-BR")
       : "indisponível";
-    let dataNote = market === "b3" ? `<div class="compact-info">${candles.length} candles D1 • último ${lastDate} • ${x?.dataSource || "BRAPI"}${candles.length < 66 ? " • HISTÓRICO INSUFICIENTE PARA OS CINCO MOTORES" : ""}${x?.dataStale ? " • ATUALIZAÇÃO FALHOU: DADOS ANTERIORES" : ""}</div>` : "";
+    let dataNote = "";
     let v = visual(a),
       action = a.tradeAllowed
         ? a.dir === "BUY"
@@ -335,10 +295,10 @@
   const diagnostics = { version: 58, errors: {} };
   function marketCard(market) {
     try {
-      const app = market === "crypto" ? window.CryptoApp : window.B3App;
+      const app = window.CryptoApp;
       const map = app?.getData?.();
       let missing = !app ? "Módulo de dados não carregado"
-        : !map?.size ? (market === "b3" ? "Nenhuma ação com histórico válido. Verifique Conexão B3." : "Nenhuma moeda carregada. Verifique Atualizar Cripto.")
+        : !map?.size ? ("Nenhuma moeda carregada. Verifique Atualizar Cripto.")
         : !window.EPDecision?.calc ? "Módulo de interpretação não carregado" : "";
       if (missing) return { selected: null, html: `<div class="decision-card neutral">${head(null, market, null, false)}<div class="decision-main">AGUARDANDO LEITURA</div><div class="compact-info">${missing}</div></div>` };
       const selected = pickFocused(map, market);

@@ -142,7 +142,7 @@
   }
   function row(e){
     const cur=pct(e.dir,e.startPrice,e.currentPrice),closed=!!e.endTs;
-    return`<tr><td><b>${e.asset}</b><small>${e.market==='crypto'?'CRIPTO':'B3'} • ${e.dir==='BUY'?'COMPRA':'VENDA'}${closed?' • ENCERRADO':''}</small><small>${firstActivationSummary(e)}</small></td><td>${stage(e,1)}</td><td>${stage(e,2)}</td><td>${stage(e,3)}</td><td>${stage(e,4)}</td><td>${stage(e,5)}</td><td><b>${e.peakMotors}/5</b></td><td><b>${e.currentMotors}/5</b><small>${fp(e.currentPrice)}</small><small>${motorLabel(e.lastActiveMotorIds)}</small></td><td class="${cur>=0?'mpe-pos':'mpe-neg'}"><b>${pc(cur)}</b></td><td>${elapsed(e.startTs)}</td></tr>`;
+    return`<tr><td><b>${e.asset}</b><small>${'CRIPTO'} • ${e.dir==='BUY'?'COMPRA':'VENDA'}${closed?' • ENCERRADO':''}</small><small>${firstActivationSummary(e)}</small></td><td>${stage(e,1)}</td><td>${stage(e,2)}</td><td>${stage(e,3)}</td><td>${stage(e,4)}</td><td>${stage(e,5)}</td><td><b>${e.peakMotors}/5</b></td><td><b>${e.currentMotors}/5</b><small>${fp(e.currentPrice)}</small><small>${motorLabel(e.lastActiveMotorIds)}</small></td><td class="${cur>=0?'mpe-pos':'mpe-neg'}"><b>${pc(cur)}</b></td><td>${elapsed(e.startTs)}</td></tr>`;
   }
   function render(){
     ensure();const root=$('#motorPriceEvolution');if(!root)return;
@@ -152,11 +152,11 @@
   }
   function scan(){
     window.CryptoApp?.getData?.()?.forEach?.(x=>update(x,'crypto'));
-    window.B3App?.getData?.()?.forEach?.(x=>update(x,'b3'));
+    
     save();render();
   }
   window.addEventListener('crypto-data-updated',scan);
-  window.addEventListener('b3-data-updated',scan);
+  
   window.addEventListener('mtf-updated',scan);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{ensure();setTimeout(scan,2600)});else{ensure();setTimeout(scan,2600)}
   setInterval(()=>{if(!document.hidden)scan()},10000);

@@ -70,10 +70,7 @@
       ibc = +(window.EPIBC.calc(x, o.market, dir)?.score || 0);
     if (window.EPSR?.calc) sr = window.EPSR.calc(x, o.market, dir);
     const flowAligned =
-      o.market === "crypto"
-        ? (dir === "BUY" && +x.flow > 0) || (dir === "SELL" && +x.flow < 0)
-        : (dir === "BUY" && +x.change >= 0) ||
-          (dir === "SELL" && +x.change <= 0);
+      (dir === "BUY" && +x.flow > 0) || (dir === "SELL" && +x.flow < 0);
     const breakout = !!sr?.aligned,
       blocked = !!sr?.blocked;
     let trendHealth = 0;
@@ -188,9 +185,7 @@
     if (!api?.get) return;
     api.get().forEach((o) => {
       let map =
-          o.market === "crypto"
-            ? window.CryptoApp?.getData?.()
-            : window.B3App?.getData?.(),
+          window.CryptoApp?.getData?.(),
         x = map?.get?.(o.asset) || map?.get?.(String(o.asset).replace("/", "")),
         a = x ? window.EPDecision?.calc?.(x, o.market) : null,
         p = +(
@@ -237,7 +232,6 @@
   [
     "live-operations-ready",
     "crypto-data-updated",
-    "b3-data-updated",
     "sr-intelligence-ready",
   ].forEach((e) => window.addEventListener(e, attach));
   window.EPExitIntelligence = {

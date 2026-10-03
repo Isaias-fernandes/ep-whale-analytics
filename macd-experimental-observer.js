@@ -48,7 +48,7 @@
   function render(){
     ensurePanel();const rows=[];
     const cm=window.CryptoApp?.getData?.();if(cm)for(const [s,a] of cm){const r=macd(a.candles);if(r){record('crypto',s,a,r);rows.push({market:'CRIPTO',symbol:s,r,mi:motorInfo(a,'crypto')})}}
-    const bm=window.B3App?.getData?.();if(bm)for(const [s,a] of bm){const r=macd(a.candles);if(r){record('b3',s,a,r);rows.push({market:'B3',symbol:s,r,mi:motorInfo(a,'b3')})}}
+    
     const strong=rows.filter(x=>x.r.crossUp||x.r.crossDown||x.r.divergence!=='NENHUMA'||x.r.histGrowing).sort((a,b)=>(b.mi.motorCount||0)-(a.mi.motorCount||0)).slice(0,12);
     const sum=document.getElementById('macdExpSummary'),out=document.getElementById('macdExpRows');
     if(sum)sum.textContent=`${rows.length} ativos observados • ${strong.length} destaques exibidos • histórico local até ${MAX} observações.`;
@@ -56,6 +56,6 @@
   }
   window.EPMacdExperimentalObserver={analyze:macd,getHistory:load,render};
   window.addEventListener('crypto-data-updated',()=>setTimeout(render,50));
-  window.addEventListener('b3-data-updated',()=>setTimeout(render,50));
+  
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{ensurePanel();setTimeout(render,1200)});else{ensurePanel();setTimeout(render,1200)}
 })();

@@ -6,7 +6,7 @@
   const KEY='ep_motor_price_evolution_v1', LIMIT=120;
   const $=s=>document.querySelector(s), now=()=>Date.now();
   let db=load();
-  // EP atual é exclusivamente cripto: elimina resíduos históricos da antiga B3 neste observador.
+  // EP atual é exclusivamente cripto: elimina resíduos históricos da mercado removido neste observador.
   db.open=Object.fromEntries(Object.entries(db.open||{}).filter(([,e])=>e?.market==='crypto'));
   db.closed=(db.closed||[]).filter(e=>e?.market==='crypto');
   save();

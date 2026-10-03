@@ -234,23 +234,19 @@
   }
   function selected() {
     let cm = window.CryptoApp?.getData?.(),
-      bm = window.B3App?.getData?.(),
-      cs = $("#chartCryptoPair")?.value || $("#pair")?.value,
-      bs = $("#chartB3Pair")?.value || $("#b3Pair")?.value;
+      cs = $("#chartCryptoPair")?.value || $("#pair")?.value;
     return [
       {
         market: "crypto",
         asset: cm?.get?.(cs),
         label: cs?.replace("USDT", "/USDT"),
       },
-      { market: "b3", asset: bm?.get?.(bs), label: bs },
     ];
   }
   function renderDetail() {
     let sel = selected();
     [
       ["#detail", sel[0]],
-      ["#b3Detail", sel[1]],
     ].forEach(([q, x]) => {
       let el = $(q);
       if (!el || !x?.asset) return;
@@ -261,7 +257,7 @@
         p.className = "rgate-detail rgate-card";
         el.prepend(p);
       }
-      p.innerHTML = `<small>REVERSAL GATE • ${x.market === "crypto" ? "com fluxo/book" : "B3 simplificado"}</small><b class="rgate-${g.cls}">${badge(g)}</b><div class="rgate-metrics"><span>ADX ${g.adx.toFixed(1)}</span><span>+DI ${g.pdi.toFixed(1)}</span><span>−DI ${g.mdi.toFixed(1)}</span><span>Divergência ${g.divergence ? "SIM" : "não"}</span></div><small>${g.reasons.length ? "Risco: " + g.reasons.slice(0, 3).join(" • ") : g.continuation.join(" • ") || "Sem alerta de exaustão relevante"}</small>`;
+      p.innerHTML = `<small>REVERSAL GATE • ${"com fluxo/book"}</small><b class="rgate-${g.cls}">${badge(g)}</b><div class="rgate-metrics"><span>ADX ${g.adx.toFixed(1)}</span><span>+DI ${g.pdi.toFixed(1)}</span><span>−DI ${g.mdi.toFixed(1)}</span><span>Divergência ${g.divergence ? "SIM" : "não"}</span></div><small>${g.reasons.length ? "Risco: " + g.reasons.slice(0, 3).join(" • ") : g.continuation.join(" • ") || "Sem alerta de exaustão relevante"}</small>`;
     });
   }
   function renderTop() {
@@ -280,15 +276,13 @@
     window.CryptoApp?.getData?.()?.forEach?.((a) =>
       rows.push({ a, m: "crypto", g: calc(a, "crypto"), n: a.sym }),
     );
-    window.B3App?.getData?.()?.forEach?.((a) =>
-      rows.push({ a, m: "b3", g: calc(a, "b3"), n: a.ticker }),
-    );
+    
     rows = rows
       .filter((x) => x.g.score >= 30)
       .sort((a, b) => b.g.score - a.g.score)
       .slice(0, 5);
     box.innerHTML = rows.length
-      ? `<div class="rgate-panel">${rows.map((x) => `<div class="rgate-card"><b>${x.n}</b><small>${x.m === "crypto" ? "CRIPTO" : "B3"}</small><div class="rgate-${x.g.cls}"><b>${badge(x.g)}</b></div><small>${x.g.reasons.slice(0, 2).join(" • ") || "monitorar"}</small></div>`).join("")}</div>`
+      ? `<div class="rgate-panel">${rows.map((x) => `<div class="rgate-card"><b>${x.n}</b><small>CRIPTO</small><div class="rgate-${x.g.cls}"><b>${badge(x.g)}</b></div><small>${x.g.reasons.slice(0, 2).join(" • ") || "monitorar"}</small></div>`).join("")}</div>`
       : '<div class="sub">Nenhum ativo com risco de reversão ≥30 neste momento.</div>';
   }
   function registerHistory() {
@@ -300,9 +294,7 @@
     } catch {}
     for (let e of Object.values(db.open || {})) {
       let map =
-          e.market === "crypto"
-            ? window.CryptoApp?.getData?.()
-            : window.B3App?.getData?.(),
+          window.CryptoApp?.getData?.(),
         a = map?.get?.(e.asset);
       if (!a && e.market === "crypto")
         a = map?.get?.(String(e.asset).replace("/", ""));
@@ -340,7 +332,7 @@
     render();
     setInterval(render, 5000);
     window.addEventListener("crypto-data-updated", render);
-    window.addEventListener("b3-data-updated", render);
+    
   }, 1200);
   window.EPReversalGate = { calc, render, badge };
 })();
