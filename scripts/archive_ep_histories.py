@@ -64,7 +64,7 @@ def ident(value):
 
 def discover(ref):
     scope = ("n.nspname='public' AND left(c.relname,3)='ep_'"
-             if ref == PROJECTS[0][2] else "n.nspname='ep_market_history'")
+             if ref == PROJECTS[0][2] else "(n.nspname='ep_market_history' OR (n.nspname='public' AND c.relname IN ('ep_lab_live_state','ep_lab_live_events')))")
     return database_query(ref, """
         SELECT n.nspname AS schema, c.relname AS name,
           COALESCE((SELECT json_agg(json_build_object('name',a.attname,
@@ -199,6 +199,17 @@ def upload_and_verify(repo, token, release, path, expected):
         raise RuntimeError("Remote archive verification failed")
     return asset["id"]
 
+
+def store_lab_receipts(ref, receipts, release_url):
+    database_query(ref, """
+      INSERT INTO public.ep_lab_live_archive_receipts(event_id,row_sha256,release_url)
+      SELECT r.id,r.hash,$2 FROM jsonb_to_recordset($1::jsonb) AS r(id text,hash text)
+      JOIN public.ep_lab_live_events e ON e.id=r.id
+      ON CONFLICT(event_id) DO UPDATE SET row_sha256=excluded.row_sha256,
+        release_url=excluded.release_url,archived_at=now()
+      RETURNING event_id
+    """, [json.dumps(receipts),release_url], read_only=False)
+
 def main():
     repo = os.environ.get("EP_ARCHIVE_REPOSITORY", "").strip()
     token = os.environ.get("EP_ARCHIVE_TOKEN", "")
@@ -236,6 +247,25 @@ def main():
           ON CONFLICT (archive_id) DO NOTHING RETURNING archive_id
         """, [run_id, project["snapshot_at"], repo, release["html_url"],
               manifest_hash, json.dumps(project["table_counts"])], read_only=False)
+        # Laboratory receipts use the exact exported row bytes and are stored only
+        # after every release asset has been downloaded and SHA-256 verified.
+        for project in projects:
+            if project["label"] != "ep-market-history":
+                continue
+            for entry in project["files"]:
+                if entry["table"] != "public.ep_lab_live_events":
+                    continue
+                receipts = []
+                with gzip.open(root / entry["name"], "rb") as rows:
+                    for line in rows:
+                        raw = line.rstrip(b"\\n")
+                        receipts.append({"id": json.loads(raw)["id"],
+                                         "hash": hashlib.sha256(raw).hexdigest()})
+                        if len(receipts) == 1000:
+                            store_lab_receipts(project["project_ref"], receipts, release["html_url"])
+                            receipts = []
+                if receipts:
+                    store_lab_receipts(project["project_ref"], receipts, release["html_url"])
         print("Verified archive complete:", run_id)
         for project in projects:
             print(project["label"], "tables:", len(project["table_counts"]),
