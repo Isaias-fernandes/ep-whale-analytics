@@ -14,11 +14,12 @@
  function preview(){
    let m=MARKET,a=$("#lopAsset")?.value,el=$("#lopPreview"); if(!el||!a)return;
    let x=mapFor(m)?.get?.(a),d=x?window.EPDecision?.calc?.(x,m):null;
-   let p=+(x?.livePrice??x?.price??x?.regularMarketPrice??x?.close??0),mot=+d?.motorAgree||0,dir=d?.dir==="BUY"?"COMPRA":d?.dir==="SELL"?"VENDA":"NEUTRO";
+   let p=+(x?.livePrice??x?.price??x?.regularMarketPrice??x?.close??x?.candles?.at?.(-1)?.c??0),mot=+d?.motorAgree||0,dir=d?.dir==="BUY"?"COMPRA":d?.dir==="SELL"?"VENDA":"NEUTRO";
    el.innerHTML=`<b>${String(a).replace("USDT","/USDT")}</b> • Preço <b>${fmt(p)}</b> • <b>${mot}/5 motores</b> • ${dir} ${active(m,a)?"• <b>📌 JÁ EM ACOMPANHAMENTO</b>":""}`;
  }
  function fill(force=false){
    let m=MARKET,s=$("#lopAsset"); if(!s)return;
+   if(s.matches(":focus")){preview();return;}
    let old=selected||s.value,html=options(m); if(force||s.dataset.market!==m||!s.options.length){s.innerHTML=html;s.dataset.market=m}
    if([...s.options].some(o=>o.value===old))s.value=old;
    else if(s.value)selected=s.value;

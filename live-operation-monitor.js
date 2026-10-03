@@ -38,12 +38,14 @@
         m = Math.floor((s % 3600) / 60);
       return h ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
     };
+  function normalizeAsset(a) {
+    let n = String(a || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return n.endsWith("USDT") ? n : n + "USDT";
+  }
   function data(m, a) {
-    let map =
-        window.CryptoApp?.getData?.(),
-      x = map?.get?.(a);
-    if (!x && m === "crypto") x = map?.get?.(String(a).replace("/", ""));
-    return x;
+    const map = window.CryptoApp?.getData?.(), symbol = normalizeAsset(a);
+    return map?.get?.(a) || map?.get?.(symbol) ||
+      [...(map?.values?.() || [])].find(x => normalizeAsset(x.sym || x.key) === symbol);
   }
   function calc(m, x) {
     return x ? window.EPDecision?.calc?.(x, m) : null;
@@ -57,6 +59,7 @@
       x?.price ??
       x?.regularMarketPrice ??
       x?.close ??
+      x?.candles?.at?.(-1)?.c ??
       0
     );
     return Number.isFinite(p) && p > 0 ? p : NaN;
@@ -184,12 +187,15 @@
     });
   }
   function add(m, a) {
+    a = normalizeAsset(a);
     let x = data(m, a),
       d = calc(m, x);
     if (!x || !d) return alert("Dados do ativo ainda não disponíveis.");
     let motors = +d.motorAgree || 0;
-    let existing = ops.find((o) => o.market === m && o.asset === a);
+    let existing = ops.find((o) => o.market === m && normalizeAsset(o.asset) === a);
     if (existing) {
+      existing.readOnlySeed = false;
+      save();
       rebuild();
       let section = document.getElementById("liveOperationsSection");
       let el = [...document.querySelectorAll("[data-op]")].find(
@@ -210,7 +216,7 @@
       alert("Este ativo já está em acompanhamento. Veja MINHAS OPERAÇÕES.");
       return;
     }
-    if (ops.length >= 10)
+    if (ops.filter(o => !o.readOnlySeed).length >= 10)
       return alert("Limite de 10 ativos em acompanhamento. Encerre um acompanhamento para adicionar outro.");
     let g = gate(m, x),
       p = price(x);
