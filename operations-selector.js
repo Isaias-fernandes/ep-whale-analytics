@@ -30,7 +30,28 @@
    let box=document.createElement("div"); box.id="lopManualSelector"; box.style.cssText="display:grid;gap:8px;margin:8px 0 12px";
    box.innerHTML=`<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center"><b class="lop-btn" style="cursor:default">CRIPTO</b><select id="lopAsset" class="lop-btn" style="min-width:210px"></select><button id="lopShow" class="lop-btn" type="button">👁 MOSTRAR ATIVO</button><button id="lopAddManual" class="lop-btn" type="button">📌 INICIAR ACOMPANHAMENTO</button></div><div id="lopPreview" class="lop-cell">Selecione um ativo.</div><div id="lopActionStatus" class="sub" role="status" aria-live="polite"></div>`;
    root.parentElement?.insertBefore(box,root);
-   $("#lopAsset").onchange=()=>{selected=$("#lopAsset").value;try{localStorage.setItem(SELECTED_KEY,selected)}catch{}preview()};
+   $("#lopAsset").onchange=()=>{selected=$("#lopAsset").value;try{localStorage.setItem(SELECTED_KEY,selected)}catch{}preview();startTracking(MARKET,selected)};
+ function startTracking(m,a){
+   if(!a)return null;
+   const name=String(a).replace("USDT","/USDT"),status=$("#lopActionStatus");
+   let o=(window.EPLiveOperations?.get?.()||[]).find(z=>z.market===m&&z.asset===a);
+   if(o){
+     if(status)status.textContent=`✓ ${name} já está em acompanhamento.`;
+   }else{
+     if(status)status.textContent=`⏱ Iniciando ${name}...`;
+     o=window.EPLiveOperations?.add?.(m,a);
+     o=o||(window.EPLiveOperations?.get?.()||[]).find(z=>z.market===m&&z.asset===a);
+     if(!o){
+       if(status)status.textContent=`Não foi possível iniciar ${name}. A seleção foi mantida; verifique cotação e limite de 10 ativos.`;
+       return null;
+     }
+     if(status)status.textContent=`✓ ${name} está em acompanhamento.`;
+   }
+   preview();
+   const el=[...document.querySelectorAll("#liveOperations [data-op]")].find(n=>n.dataset.op===o.id);
+   el?.scrollIntoView({behavior:"smooth",block:"center"});
+   return o;
+ }
    $("#lopShow").onclick=()=>{
      let a=$("#lopAsset").value,status=$("#lopActionStatus"); if(!a)return;
      selected=a;try{localStorage.setItem(SELECTED_KEY,a)}catch{}
@@ -43,20 +64,7 @@
      if(card){card.scrollIntoView({behavior:"smooth",block:"nearest"});status.textContent=`${String(a).replace("USDT","/USDT")} em acompanhamento.`}
      else status.textContent=`${String(a).replace("USDT","/USDT")} selecionado. Toque em INICIAR ACOMPANHAMENTO para mantê-lo no painel.`;
    };
-   $("#lopAddManual").onclick=()=>{let m=MARKET,a=$("#lopAsset").value,status=$("#lopActionStatus");if(!a)return;
-     let name=String(a).replace("USDT","/USDT");
-     status.textContent=`⏱ Iniciando ${name}...`;
-     // A própria add() é síncrona; confirme no mesmo clique, sem esperar frame/ciclo.
-     selected=a;try{localStorage.setItem(SELECTED_KEY,a)}catch{}
-     window.EPLiveOperations?.add?.(m,a);
-     let o=(window.EPLiveOperations?.get?.()||[]).find(z=>z.market===m&&z.asset===a);
-     if(o){
-       status.textContent=`✓ ${name} está em acompanhamento.`;
-       preview();
-       let el=[...document.querySelectorAll("[data-op]")].find(n=>n.dataset.op===o.id);
-       el?.scrollIntoView({behavior:"auto",block:"center"});
-     }else status.textContent="Acompanhamento não iniciado: dados/cotação ainda indisponíveis.";
-   };
+   $("#lopAddManual").onclick=()=>{const a=$("#lopAsset").value;if(!a)return;selected=a;try{localStorage.setItem(SELECTED_KEY,a)}catch{}startTracking(MARKET,a)};
    fill(true);
  }
  function refresh(){ensure();if(!$("#lopAsset")?.matches(":focus"))fill(false);else preview()}
