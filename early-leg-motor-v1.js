@@ -33,10 +33,15 @@ function patterns(c){
 }
 const W={'Bull Pennant':24,'Bear Pennant':24,'Bull Flag':22,'Bear Flag':22,'Three Rising Valleys':20,'Rectangle Accumulation':15,'Rectangle Distribution':15,'Falling Wedge':14,'Rising Wedge':14,'Double Bottom':14,'Double Top':14};
 function calc(x){
+ if(!x?.observedAt||Date.now()-x.observedAt>180000)return null;
  const candles=(x?.candles||[]).slice(-96);if(candles.length<35)return null;const pats=patterns(candles);
- const backend=(window.EPBackend24?.get?.()?.state||[]).find(s=>s.symbol===x.sym||s.asset===String(x.sym||'').replace('USDT',''));
+ const candidate=(window.EPBackend24?.get?.()?.state||[]).find(s=>s.symbol===x.sym||s.asset===String(x.sym||'').replace('USDT',''));
+ const backend=candidate&&Date.now()-Date.parse(candidate.updated_at)<=180000?candidate:null;
  const el=backend?.metrics?.earlyLeg||backend?.metrics?.early_leg||null,fv=backend?.metrics?.futuresValidation||el?.metrics?.futuresValidation||null;
- const local=window.EPEarlyLegObserver?.get?.()?.rows?.[x.sym]||null,pre=el||local,preDir=pre?.dir||null,ps=+pre?.score||0,fs=fv?.score,rsi=Number.isFinite(+x.rsi)?+x.rsi:50;
+ const localRows=window.EPEarlyLegObserver?.get?.()?.rows;
+ const localCandidate=Array.isArray(localRows)?localRows.find(r=>r.sym===x.sym):localRows?.[x.sym]||null;
+ const localTime=localCandidate?.updated_at||localCandidate?.observedAt||localCandidate?.ts;
+ const local=localTime&&Date.now()-(typeof localTime==='number'?localTime:Date.parse(localTime))<=180000?localCandidate:null,pre=el||local,preDir=pre?.dir||null,ps=+pre?.score||0,fs=fv?.score,rsi=Number.isFinite(+x.rsi)?+x.rsi:50;
  function side(dir){
    const sideP=pats.filter(p=>p.dir===dir),best=[...sideP].sort((a,b)=>(W[b.name]||0)-(W[a.name]||0))[0]||null;
    const aligned=!preDir||preDir===dir;

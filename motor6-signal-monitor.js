@@ -30,7 +30,7 @@ function add(sym,opts={}){
 function close(id,reason='MANUAL'){
  const i=open.findIndex(z=>z.id===id);if(i<0)return false;
  const o=open[i],x=asset(o.asset),p=price(x),exit=Number.isFinite(p)?p:o.lastPrice,now=Date.now();
- const archived={...o,exitAt:now,exitPrice:exit,result:ret(o.entryPrice,exit,o.entryDir),closeReason:reason,status:'CLOSED'};
+ const archived={...o,exitAt:now,exitPrice:exit,result:ret(o.entryPrice,exit,o.entryDir),closeReason:reason,lastPrice:exit,status:'CLOSED'};
  hist.push(archived);open.splice(i,1);cooldown[norm(o.asset)]=now;if(o.readOnlySeed&&!dismissed.includes(norm(o.asset))){dismissed.push(norm(o.asset));try{localStorage.setItem('ep_motor6_watch_dismissed_v1',JSON.stringify(dismissed))}catch{}}save();
  window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:{closed:archived}}));return true;
 }
@@ -42,7 +42,7 @@ function autoScan(){
    const sym=norm(key||x?.sym||x?.key);if(!sym||open.some(o=>norm(o.asset)===sym))continue;
    if(now-(+cooldown[sym]||0)<COOLDOWN_MS)continue;
    let e;try{e=window.EPEarlyLegMotorV1.calc(x)}catch{continue}
-   if(e&&Number.isFinite(+e.score)&&+e.score>=AUTO_SCORE)add(sym,{silent:true,source:'auto-score-'+AUTO_SCORE});
+   if(x.observedAt&&now-x.observedAt<=180000&&e&&Number.isFinite(+e.score)&&+e.score>=AUTO_SCORE)add(sym,{silent:true,source:'auto-score-'+AUTO_SCORE});
  }
 }
 function tick(){
