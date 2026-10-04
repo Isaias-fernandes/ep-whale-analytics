@@ -66,7 +66,7 @@
   const [sym,name]=pair,live=map.get(sym)||map.get(name);
   if(!live||Date.now()-(+live.observedAt||0)>180000||!(+live.price>0))return{sym,name,error:'Cotação atual indisponível ou desatualizada'};
   const now=Date.now(),price=+live.price,windows={};
-  for(const [label,hrs] of MINS){const w=windowLow(c,hrs,now);if(!w){windows[label]=null;continue}
+  for(const [label,hrs] of MINS){const w=label==='24h'&&+live.dayLow>0?{low:+live.dayLow,candles:24}:windowLow(c,hrs,now);if(!w){windows[label]=null;continue}
    const distance=(price-w.low)/w.low*100;
    windows[label]={low:w.low,distance,candles:w.candles,near:distance<=+(el('m7Tolerance')?.value||.5)};
   }
