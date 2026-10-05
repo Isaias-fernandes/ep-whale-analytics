@@ -7,10 +7,13 @@
 const STORE='ep_m6_fundamental_check_v1';
 const ITEMS=[
  {id:'utility',label:'Utilidade do token',help:'O token tem função clara e necessária no projeto?'},
- {id:'adoption',label:'Uso e adoção',help:'Há uso real, usuários, aplicações ou atividade verificável?'},
- {id:'liquidity',label:'Liquidez',help:'O volume e a profundidade permitem entrar e sair sem grande impacto?'},
- {id:'supply',label:'Oferta e desbloqueios',help:'A emissão, concentração e calendário de desbloqueios são sustentáveis?'},
- {id:'transparency',label:'Transparência e riscos',help:'Equipe, documentação, segurança e riscos são verificáveis?'}
+ {id:'adoption',label:'Uso e adoção',help:'Há uso real, usuários e aplicações verificáveis?'},
+ {id:'liquidity',label:'Liquidez e execução',help:'Volume, spread e profundidade permitem entrar e sair com pouco impacto?'},
+ {id:'supply',label:'Capitalização e circulação',help:'Compare valor de mercado, FDV, supply circulante/total e concentração.'},
+ {id:'unlocks',label:'Emissão e desbloqueios',help:'Emissão e próximos desbloqueios podem aumentar muito a oferta disponível?'},
+ {id:'development',label:'Atividade de desenvolvimento',help:'Há releases, atualizações técnicas ou documentação recente verificável?'},
+ {id:'community',label:'Comunidade e engajamento',help:'Há participação útil e progresso verificável além de divulgação e hype?'},
+ {id:'transparency',label:'Transparência, segurança e riscos',help:'Equipe, documentação, auditorias e riscos são verificáveis?'}
 ];
 let records={};
 try{records=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch{records={}}
@@ -24,9 +27,10 @@ function assetLabel(sym){return options().find(x=>norm(x.symbol)===norm(sym)||no
 function result(r){
  if(!r)return{label:'Não avaliado',score:null,cls:'m6f-unknown'};
  const vals=ITEMS.map(i=>r.ratings?.[i.id]);
- if(vals.some(v=>v===0))return{label:'Risco identificado',score:vals.filter(v=>v===2).length*20+vals.filter(v=>v===1).length*10,cls:'m6f-risk'};
- if(vals.some(v=>v!==1&&v!==2))return{label:'Incompleto',score:null,cls:'m6f-unknown'};
- const score=vals.reduce((a,v)=>a+v*10,0);
+ const complete=vals.every(v=>v===0||v===1||v===2);
+ const score=complete?Math.round(vals.reduce((a,v)=>a+v*50,0)/ITEMS.length):null;
+ if(vals.some(v=>v===0))return{label:complete?'Risco identificado':'Risco identificado · incompleto',score,cls:'m6f-risk'};
+ if(!complete)return{label:'Incompleto',score:null,cls:'m6f-unknown'};
  if(score>=80)return{label:'Fundamento favorável',score,cls:'m6f-good'};
  if(score>=50)return{label:'Revisar antes de priorizar',score,cls:'m6f-review'};
  return{label:'Risco elevado',score,cls:'m6f-risk'};
@@ -51,14 +55,14 @@ function mount(){
  card.id='m6FundamentalCard';
  card.className='m6f-card';
  card.innerHTML='<h3>🔎 FILTRO DE QUALIDADE DO PROJETO — MOTOR 6</h3>'+
- '<p class="m6f-muted">Use esta lista antes de priorizar um sinal: utilidade do token, adoção verificável, liquidez, oferta/desbloqueios e transparência/segurança. A avaliação é manual e complementar; não altera os cinco motores nem o score de mercado do Motor 6.</p>'+
+ '<p class="m6f-muted">Avaliação manual de contexto: utilidade, adoção, liquidez, capitalização/FDV, circulação e desbloqueios, desenvolvimento, comunidade e transparência. É complementar; não prevê a direção, não bloqueia sinais e não altera o score técnico nem os cinco motores. Avaliações anteriores continuam salvas e ficam incompletas até preencher os novos itens.</p>'+
  '<div class="m6f-form">'+
  '<label>Ativo<select id="m6fAsset"></select></label>'+
  ITEMS.map(i=>'<label class="m6f-item"><span><b>'+esc(i.label)+'</b><small>'+esc(i.help)+'</small></span><select data-m6f-rating="'+i.id+'"><option value="">Não avaliado</option><option value="2">Favorável — evidência verificada</option><option value="1">Misto — precisa confirmar</option><option value="0">Risco — evidência desfavorável</option></select></label>').join('')+
- '<label class="m6f-notes">Fonte/evidência consultada (opcional)<textarea id="m6fNotes" maxlength="500" placeholder="Ex.: documentação oficial, dados de uso, calendário de desbloqueios"></textarea></label>'+
+ '<label class="m6f-notes">Fonte/evidência consultada (opcional)<textarea id="m6fNotes" maxlength="500" placeholder="Informe a fonte consultada e, se possível, a data: documentação oficial, explorador, dados de uso, FDV ou desbloqueios"></textarea></label>'+
  '<div class="m6f-actions"><button type="button" id="m6fSave">Salvar avaliação</button><button type="button" id="m6fClear" class="secondary">Apagar avaliação deste ativo</button><span id="m6fResult" role="status"></span></div></div>'+
  '<h4>Ativos acompanhados pelo Motor 6</h4><div id="m6FundamentalWatch"></div>'+
- '<p class="m6f-foot">Os dados da avaliação ficam somente neste navegador (uma versão atual por moeda), sem histórico e sem chamadas adicionais ao Supabase.</p>';
+ '<p class="m6f-foot">Avaliação manual: os dados ficam somente neste navegador (uma versão atual por moeda), sem histórico, sincronização entre aparelhos ou chamadas adicionais ao Supabase. Informe a fonte para facilitar a conferência.</p>';
  const style=document.createElement('style');
  style.textContent='#m6FundamentalCard{margin-top:14px;padding:14px;border:1px solid #315a72;border-radius:12px;background:#081a29}#m6FundamentalCard h3{margin:0 0 7px}#m6FundamentalCard h4{margin:16px 0 8px}.m6f-muted,.m6f-foot{color:#9db0c5;font-size:12px;line-height:1.45}.m6f-foot{border-top:1px solid #20334a;padding-top:8px}.m6f-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:9px}.m6f-form>label{display:flex;flex-direction:column;gap:5px}.m6f-form select,.m6f-form textarea{width:100%;box-sizing:border-box;padding:9px;border-radius:7px;background:#0b1726;color:#e8eef6;border:1px solid #35516e}.m6f-item{padding:8px;border:1px solid #20334a;border-radius:8px}.m6f-item small{display:block;color:#9db0c5;margin:3px 0 6px}.m6f-notes{grid-column:1/-1}.m6f-form textarea{min-height:58px}.m6f-actions{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.m6f-actions button{width:auto}.m6f-badge{display:inline-block;padding:4px 7px;border-radius:7px;font-size:11px}.m6f-good{color:#7ff0c7;background:#103426}.m6f-review{color:#ffd06c;background:#352b10}.m6f-risk{color:#ff9da6;background:#371920}.m6f-unknown{color:#b9c4d1;background:#1d2936}.m6f-table-wrap{overflow:auto}.m6f-table{width:100%;min-width:520px;border-collapse:collapse}.m6f-table th,.m6f-table td{padding:8px;border-bottom:1px solid #20334a;text-align:left;font-size:12px}';
  section.appendChild(card);section.appendChild(style);
