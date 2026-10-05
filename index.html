@@ -238,7 +238,7 @@
     
       <section class="card" id="motor7MinimumCard">
         <h2>📍 MOTOR 7 — MÍNIMAS E REVERSÃO INICIAL</h2>
-        <p class="sub">Varredura observacional das mínimas de 24h, 7d, 14d e 30d. A leitura atual fica na memória da página e não gera histórico; somente a lista de ativos selecionados é salva localmente neste dispositivo, sem usar Supabase ou GitHub. Um ativo perto da mínima pode continuar caindo; o painel separa toque da mínima de sinais iniciais de reversão.</p>
+        <p class="sub">Varredura observacional das mínimas de 24h, 7d, 14d e 30d. O cálculo fica somente na memória desta página: não grava no Supabase, GitHub ou armazenamento do navegador. Um ativo perto da mínima pode continuar caindo; o painel separa toque da mínima de sinais iniciais de reversão.</p>
         <div id="motor7MinimumPanel"><p class="sub">Aguardando dados do mercado...</p></div>
       </section>
     </main>
@@ -308,6 +308,6 @@
       tabBacktest.onclick = () => setMarket("backtest");
     </script>
   <script src="prospective-comparison.js?v=20261003-1"></script>
-    <script src="motor7-minimum.js?v=20261005-persist-selection-v2"></script>
+    <script src="motor7-minimum.js?v=20261004-1"></script>
 </body>
 </html>
