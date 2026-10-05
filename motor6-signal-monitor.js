@@ -46,7 +46,20 @@ function autoScan(){
  }
 }
 function tick(){
- for(const o of open){const x=asset(o.asset),p=price(x),e=window.EPEarlyLegMotorV1?.calc?.(x);if(!Number.isFinite(p)||!e)continue;const r=ret(o.entryPrice,p,o.entryDir);o.lastPrice=p;o.lastScore=+e.score||0;o.lastDir=e.dir||o.lastDir||'BUY';o.lastPhase=e.phase;o.lastPattern=e.pattern;o.lastRsi=e.rsi;o.lastPreLeg=e.preLegScore;o.lastFutures=e.futuresScore;o.updates=(o.updates||0)+1;if(Number.isFinite(r)){o.best=Math.max(+o.best||0,r);o.worst=Math.min(+o.worst||0,r);for(const t of TARGETS)if(r>=t&&!o.targets[t])o.targets[t]={at:Date.now(),price:p,hours:+((Date.now()-o.entryAt)/36e5).toFixed(2)}}}
+ const now=Date.now();
+ for(const o of open){
+  const x=asset(o.asset),p=price(x);
+  if(!Number.isFinite(p))continue;
+  let e=null;try{e=window.EPEarlyLegMotorV1?.calc?.(x)||null}catch{}
+  const r=ret(o.entryPrice,p,o.entryDir);
+  o.lastPrice=p;o.lastPriceAt=now;o.updates=(o.updates||0)+1;
+  if(e){o.lastScore=+e.score||0;o.lastDir=e.dir||o.lastDir||'BUY';o.lastPhase=e.phase;o.lastPattern=e.pattern;o.lastRsi=e.rsi;o.lastPreLeg=e.preLegScore;o.lastFutures=e.futuresScore}
+  if(Number.isFinite(r)){
+   o.best=Math.max(+o.best||0,r);o.worst=Math.min(+o.worst||0,r);
+   if(!o.targets||typeof o.targets!=='object')o.targets={};
+   for(const t of TARGETS)if(r>=t&&!o.targets[t])o.targets[t]={at:now,price:p,hours:+((now-o.entryAt)/36e5).toFixed(2)};
+  }
+ }
  save();autoScan();window.dispatchEvent(new CustomEvent('ep-motor6-watch-updated'));
 }
 ['crypto-data-updated','ep-early-leg-motor-ready','ep-early-leg-updated'].forEach(ev=>window.addEventListener(ev,autoScan));
