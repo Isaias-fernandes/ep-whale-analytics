@@ -37,7 +37,7 @@ function result(r){
 }
 function status(sym){
  const r=records[norm(sym)],v=result(r);
- return{...v,date:r?.reviewedAt||null};
+ return{...v,date:r?.reviewedAt||null,hasEvidence:!!String(r?.notes||'').trim()};
 }
 function renderTable(){
  const box=document.getElementById('m6FundamentalWatch');
@@ -55,11 +55,11 @@ function mount(){
  card.id='m6FundamentalCard';
  card.className='m6f-card';
  card.innerHTML='<h3>🔎 FILTRO DE QUALIDADE DO PROJETO — MOTOR 6</h3>'+
- '<p class="m6f-muted">Avaliação manual de contexto: utilidade, adoção, liquidez, capitalização/FDV, circulação e desbloqueios, desenvolvimento, comunidade e transparência. É complementar; não prevê a direção, não bloqueia sinais e não altera o score técnico nem os cinco motores. Avaliações anteriores continuam salvas e ficam incompletas até preencher os novos itens.</p>'+
+ '<p class="m6f-muted"><b>Regra experimental de novos sinais:</b> score técnico do Motor 6 ≥50 e avaliação completa ≥80/100, sem nenhum item marcado como risco e com fonte/evidência registrada. Sem avaliação, avaliação incompleta, nota abaixo de 80 ou risco identificado bloqueia novos sinais. O filtro não altera o score técnico nem os cinco motores oficiais. Avaliações anteriores continuam salvas, mas precisam ser completadas e ter a fonte registrada.</p>'+
  '<div class="m6f-form">'+
  '<label>Ativo<select id="m6fAsset"></select></label>'+
  ITEMS.map(i=>'<label class="m6f-item"><span><b>'+esc(i.label)+'</b><small>'+esc(i.help)+'</small></span><select data-m6f-rating="'+i.id+'"><option value="">Não avaliado</option><option value="2">Favorável — evidência verificada</option><option value="1">Misto — precisa confirmar</option><option value="0">Risco — evidência desfavorável</option></select></label>').join('')+
- '<label class="m6f-notes">Fonte/evidência consultada (opcional)<textarea id="m6fNotes" maxlength="500" placeholder="Informe a fonte consultada e, se possível, a data: documentação oficial, explorador, dados de uso, FDV ou desbloqueios"></textarea></label>'+
+ '<label class="m6f-notes">Fonte/evidência consultada (obrigatória para liberar sinais)<textarea id="m6fNotes" maxlength="500" placeholder="Informe a fonte consultada e, se possível, a data: documentação oficial, explorador, dados de uso, FDV ou desbloqueios"></textarea></label>'+
  '<div class="m6f-actions"><button type="button" id="m6fSave">Salvar avaliação</button><button type="button" id="m6fClear" class="secondary">Apagar avaliação deste ativo</button><span id="m6fResult" role="status"></span></div></div>'+
  '<h4>Ativos acompanhados pelo Motor 6</h4><div id="m6FundamentalWatch"></div>'+
  '<p class="m6f-foot">Avaliação manual: os dados ficam somente neste navegador (uma versão atual por moeda), sem histórico, sincronização entre aparelhos ou chamadas adicionais ao Supabase. Informe a fonte para facilitar a conferência.</p>';
@@ -88,7 +88,7 @@ function mount(){
  });
  window.addEventListener('ep-motor6-watch-changed',renderTable);
  window.addEventListener('ep-motor6-watch-updated',renderTable);
- window.EPMotor6Fundamental={get:status,grade:result,criteria:ITEMS,refresh:renderTable};
+ window.EPMotor6Fundamental={get:status,grade:result,criteria:ITEMS,refresh:renderTable,QUALITY_MIN:80};
  load();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
