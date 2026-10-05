@@ -1,5 +1,6 @@
-/* Motor 7: observação transitória das mínimas e reversão inicial.
- * Não altera os 5 motores nem o Motor 6. Não usa localStorage, Supabase ou histórico.
+/* Motor 7: observação das mínimas e reversão inicial.
+ * Persiste somente a lista atual de ativos monitorados neste navegador/dispositivo.
+ * Não grava histórico nem usa Supabase/GitHub para essa lista.
  */
 (()=>{'use strict';
  const root=document.getElementById('motor7MinimumPanel');
@@ -8,7 +9,10 @@
  const api='https://data-api.binance.vision/api/v3/klines';
  const fmt=(n,d=6)=>Number.isFinite(+n)?(+n).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
  const pct=(v,d=2)=>Number.isFinite(+v)?(+v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—';
- let results=[],watching=new Set(),busy=false,lastRun=0,scanId=0;
+ const WATCH_KEY='ep_motor7_selected_assets_v1';
+ function loadWatching(){try{const saved=JSON.parse(localStorage.getItem(WATCH_KEY)||'[]');return new Set(Array.isArray(saved)?saved.filter(x=>typeof x==='string'&&/^[A-Z0-9]{2,20}USDT$/.test(x)):[])}catch{return new Set()}}
+ function saveWatching(){try{localStorage.setItem(WATCH_KEY,JSON.stringify([...watching]))}catch{}}
+ let results=[],watching=loadWatching(),busy=false,lastRun=0,scanId=0;
  root.innerHTML=`
   <div class="m7-controls">
    <label>Distância máxima da mínima<select id="m7Tolerance"><option value="0.25">0,25%</option><option value="0.5" selected>0,50%</option><option value="1">1,00%</option></select></label>
@@ -18,7 +22,7 @@
   <div id="m7Summary" class="m7-summary"></div>
   <h3>Central de interpretação</h3><div id="m7Signals"></div>
   <h3>Monitoramento selecionado <span id="m7WatchCount" class="sub"></span></h3><div id="m7Watching"></div>
-  <p class="sub">As mínimas de 7d, 14d e 30d são calculadas pelas mínimas das velas de 1h. Não são sinais de entrada nem previsão de fundo. A varredura atualiza a leitura, sem manter registros anteriores.</p>`;
+  <p class="sub">A lista de monitoramento fica salva somente neste navegador/dispositivo. Nenhum histórico é gravado; a varredura atualiza apenas a leitura atual.</p>`;
  const el=id=>document.getElementById(id);
  const status=(s)=>{if(el('m7Status'))el('m7Status').textContent=s};
  const dataMap=()=>window.CryptoApp?.getData?.();
@@ -95,12 +99,12 @@
  }
  function render(){
   const near=results.filter(x=>!x.error&&x.active?.length).sort((a,b)=>Math.min(...a.active.map(k=>a.windows[k].distance))-Math.min(...b.active.map(k=>b.windows[k].distance)));
-  const inWatch=[...watching].map(sym=>results.find(x=>x.sym===sym)).filter(Boolean);
+  const inWatch=[...watching].map(sym=>results.find(x=>x.sym===sym)||{sym,name:sym.replace(/USDT$/,'')});
   const total=results.filter(x=>!x.error).length;
   el('m7Summary').innerHTML=`<div class="m7-chip"><b>${total}/${pairs().length}</b><br><span class="sub">ativos calculados</span></div><div class="m7-chip"><b>${near.length}</b><br><span class="sub">perto de uma mínima</span></div><div class="m7-chip"><b>${results.filter(x=>x.level==='confirmed'&&x.active?.length).length}</b><br><span class="sub">com candle comprador</span></div><div class="m7-chip"><b>${results.filter(x=>x.error).length}</b><br><span class="sub">sem dados atuais</span></div>`;
   el('m7Signals').innerHTML=near.length?`<div class="m7-grid">${near.map(x=>card(x,watching.has(x.sym))).join('')}</div>`:'<div class="m7-empty">Nenhum ativo está dentro da distância selecionada de uma mínima. Isso não significa que não possa haver uma queda em andamento.</div>';
-  el('m7WatchCount').textContent='('+inWatch.length+' ativos; somente enquanto esta página estiver aberta)';
-  el('m7Watching').innerHTML=inWatch.length?`<div class="m7-grid">${inWatch.map(x=>card(x,true)).join('')}</div>`:'<div class="m7-empty">Nenhum ativo selecionado. Use “Monitorar” em um alerta de mínima.</div>';
+  el('m7WatchCount').textContent='('+watching.size+' ativos salvos neste dispositivo)';
+  el('m7Watching').innerHTML=inWatch.length?'<div class="m7-grid">'+inWatch.map(x=>x.price?card(x,true):'<article class="m7-card"><h3>'+x.name+'/USDT</h3><div class="m7-pills"><span class="m7-pill">EM MONITORAMENTO</span></div><p class="sub">Ativo salvo. A leitura será atualizada na próxima varredura.</p><div class="m7-actions"><button type="button" data-m7-watch="'+x.sym+'">Parar monitoramento</button></div></article>').join('')+'</div>':'<div class="m7-empty">Nenhum ativo selecionado. Use “Monitorar” em um alerta de mínima.</div>';
  }
  async function scan(){
   if(busy)return;
@@ -125,10 +129,12 @@
  }
  root.addEventListener('click',e=>{
   const b=e.target.closest('[data-m7-watch]');
-  if(b){const sym=b.dataset.m7Watch;if(watching.has(sym))watching.delete(sym);else watching.add(sym);render()}
+  if(b){const sym=b.dataset.m7Watch;if(watching.has(sym))watching.delete(sym);else watching.add(sym);saveWatching();render()}
   if(e.target.id==='m7Scan')scan();
  });
  el('m7Tolerance').addEventListener('change',()=>{if(results.length)render()});
+ // Restaura a lista salva antes da primeira varredura de mercado.
+ render();
  // The page refreshes from the existing live market feed every 30s; this windowed scan runs every 5m.
  setTimeout(()=>{if(document.visibilityState==='visible')scan()},20000);
  setInterval(()=>{if(document.visibilityState==='visible'&&Date.now()-lastRun>=300000)scan()},30000);
