@@ -2,6 +2,7 @@
   const API = "https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-five-motor-user-watch";
   const TOKEN_KEY = "ep_five_motor_pair_code_v1";
   const CLOSED_KEY = "ep_five_motor_closed_sync_v1";
+  const OPS_KEY = "ep_live_operations_v1";
   let token = "";
   let busy = false;
   let wrapped = false;
@@ -159,10 +160,10 @@
     const queued = loadClosed();
     for (const r of rows) {
       if (!r?.asset || r.market !== "crypto") continue;
-      const ix = ops.findIndex(o => !o.readOnlySeed && o.market === "crypto" && o.asset === r.asset);
+      const ix = ops.findIndex(o => o.market === "crypto" && o.asset === r.asset);
       if (r.status === "CLOSED") {
         const closedAt = asMillis(r.closed_at || r.updated_at);
-        if (ix >= 0 && closedAt >= (+ops[ix].entryAt || 0)) {
+        if (ix >= 0 && !ops[ix].readOnlySeed && closedAt >= (+ops[ix].entryAt || 0)) {
           ops.splice(ix, 1);
           changed = true;
         }
@@ -180,7 +181,10 @@
         changed = true;
       }
     }
-    if (changed) window.EPLiveOperations.render?.();
+    if (changed) {
+      try { localStorage.setItem(OPS_KEY, JSON.stringify(ops)); } catch {}
+      window.EPLiveOperations.render?.();
+    }
   }
   async function sync() {
     if (busy || !validToken(token)) return;
