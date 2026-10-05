@@ -204,7 +204,7 @@
       saveClosed([]);
       setStatus(`Sincronizado • ${currentOperations().length}/10 ativos • atualizado ${new Date().toLocaleTimeString("pt-BR")}.`);
     } catch (err) {
-      setStatus("Sem conexão com a sincronização. A lista local continua salva e tentarei novamente.", true);
+      if (String(err?.message || err).includes("402")) setStatus("Sincronização entre aparelhos pausada: o Supabase está bloqueado por limite de uso. A lista local continua salva; a sincronização volta quando o projeto EP for reativado.", true); else setStatus("Sem conexão com a sincronização. A lista local continua salva e tentarei novamente.", true);
     } finally { busy = false; }
   }
   function wrapOperations() {
