@@ -29,3 +29,34 @@ test('rendered reference states that results do not change Motor 6 scoring', () 
   assert.match(html, /não há walk-forward 70\/30/);
   assert.match(html, /Three Rising Valleys/);
 });
+
+test('mount adds one reference card under Motor 6 and is idempotent', () => {
+  const nodes = {};
+  const section = { id: 'motor6WatchSection', children: [], appendChild(node) {
+    this.children.push(node);
+    if (node.id) nodes[node.id] = node;
+  } };
+  const doc = {
+    getElementById(id) { return id === 'motor6WatchSection' ? section : nodes[id] || null; },
+    createElement(tag) {
+      return {
+        tag,
+        innerHTML: '',
+        firstElementChild: null,
+        set html(value) { this.innerHTML = value; },
+        get html() { return this.innerHTML; }
+      };
+    }
+  };
+  const card = doc.createElement('div');
+  Object.defineProperty(card, 'innerHTML', {
+    set(value) { this._html = value; this.firstElementChild = { id: 'm6PatternBacktestReference', html: value }; },
+    get() { return this._html; }
+  });
+  const originalCreate = doc.createElement;
+  doc.createElement = tag => tag === 'div' ? card : originalCreate(tag);
+  assert.equal(benchmark.mount(doc), true);
+  assert.equal(benchmark.mount(doc), false);
+  assert.equal(section.children.length, 2);
+  assert.match(nodes.m6PatternBacktestReference.html, /Rectangle \/ Trading Range/);
+});
