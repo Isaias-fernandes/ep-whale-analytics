@@ -1,0 +1,27 @@
+name: Archive EP histories
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: ep-history-archive
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check Python syntax
+        run: python -m py_compile scripts/archive_ep_histories.py
+      - name: Export, upload and verify histories
+        env:
+          EP_SUPABASE_ACCESS_TOKEN: ${{ secrets.EP_SUPABASE_ACCESS_TOKEN }}
+          EP_ARCHIVE_TOKEN: ${{ secrets.EP_ARCHIVE_TOKEN }}
+          EP_ARCHIVE_REPOSITORY: ${{ secrets.EP_ARCHIVE_REPOSITORY }}
+        run: python scripts/archive_ep_histories.py
