@@ -38,11 +38,44 @@
   const last=c.at(-1),previous=c.at(-2),volBase=avg(c.slice(-21,-1).map(z=>z.v));
   return {rsi:gain+loss===0?50:loss?100-100/(1+gain/loss):100,cci:dev?(tp.at(-1)-mean)/(.015*dev):0,macd:line.at(-1)-signal.at(-1),adx,atr:tr,obv,volume:previous.v,volumeRatio:volBase?previous.v/volBase:null,provisional:true};
  }
+
+ function swingTrend(input,side=2){
+  const c=(input||[]).filter(z=>z&&[z.t,z.h,z.l,z.c].every(Number.isFinite));
+  if(c.length<side*2+8)return {kind:'insufficient',label:'DADOS INSUFICIENTES',detail:'Poucos candles para confirmar topos e fundos',highs:[],lows:[]};
+  const highs=[],lows=[];
+  for(let i=side;i<c.length-side;i++){
+   let isHigh=true,isLow=true,strictHigh=false,strictLow=false;
+   for(let j=i-side;j<=i+side;j++){
+    if(j===i)continue;
+    if(c[j].h>c[i].h)isHigh=false;
+    if(c[j].h<c[i].h)strictHigh=true;
+    if(c[j].l<c[i].l)isLow=false;
+    if(c[j].l>c[i].l)strictLow=true;
+   }
+   if(isHigh&&strictHigh)highs.push({price:c[i].h,t:c[i].t});
+   if(isLow&&strictLow)lows.push({price:c[i].l,t:c[i].t});
+  }
+  if(highs.length<2||lows.length<2)return {kind:'insufficient',label:'DADOS INSUFICIENTES',detail:'Aguardando dois topos e dois fundos confirmados',highs,lows};
+  const recent=c.slice(-Math.min(14,c.length)),meanPrice=avg(recent.map(z=>z.c));
+  const meanRange=avg(recent.map(z=>z.h-z.l));
+  const tolerance=Math.max(.001,meanPrice>0?(meanRange/meanPrice)*.35:.001);
+  const direction=(a,b)=>{
+   const change=(b.price-a.price)/Math.abs(a.price);
+   return change>tolerance?'up':change< -tolerance?'down':'flat';
+  };
+  const hd=direction(highs.at(-2),highs.at(-1)),ld=direction(lows.at(-2),lows.at(-1));
+  const word={up:'ascendentes',down:'descendentes',flat:'estáveis'};
+  let kind='transition',label='TRANSIÇÃO';
+  if(hd==='up'&&ld==='up'){kind='up';label='ALTA';}
+  else if(hd==='down'&&ld==='down'){kind='down';label='BAIXA';}
+  else if(hd==='flat'&&ld==='flat'){kind='sideways';label='LATERAL';}
+  return {kind,label,detail:'Topos '+word[hd]+' • Fundos '+word[ld],highs:highs.slice(-2),lows:lows.slice(-2),tolerancePct:tolerance*100};
+ }
  function analyze(raw,now=Date.now()){
   const candles=raw.map(a=>({t:+a[0],o:+a[1],h:+a[2],l:+a[3],c:+a[4],v:+a[5]}));
   if(candles.some(z=>![z.t,z.o,z.h,z.l,z.c,z.v].every(Number.isFinite)))throw Error('Candles inválidos');
   return candles.filter(c=>c.t<=now);
  }
- const api={horizons,pct,metrics,classify,aggregate,indicators,analyze};
+ const api={horizons,pct,metrics,classify,aggregate,indicators,swingTrend,analyze};
  if(typeof module!=='undefined')module.exports=api;else root.EPWaveMath=api;
 })(typeof window!=='undefined'?window:globalThis);

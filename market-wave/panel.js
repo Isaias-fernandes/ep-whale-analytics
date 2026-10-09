@@ -5,18 +5,29 @@
  const pairs=window.CryptoApp?.getPairs?.()||[['BTCUSDT','BTC']];
  const fmt=(v,d=2)=>v!=null&&Number.isFinite(+v)?(+v).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
  const time=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
- root.innerHTML=`<div class="wave-controls"><label>Ativo<select id="waveSymbol">${pairs.map(([s,k])=>`<option value="${s}">${k}/USDT</option>`).join('')}</select></label><button id="waveRefresh" type="button">Atualizar mapa</button></div><p id="waveStatus" role="status">Carregando...</p><div id="waveSummary"></div><div class="wave-scroll"><table class="price-track"><thead><tr><th>Janela</th><th>Fase descritiva</th><th>Variação</th><th>Mínima</th><th>Máxima</th><th>Preço atual</th><th>Posição na faixa</th><th>Amplitude</th><th>Recuo da máxima</th><th>Dist. mínima</th><th>Dist. máxima</th><th>RSI 14</th><th>CCI 14</th><th>MACD 12/26/9</th><th>ADX 14</th><th>ATR 14</th><th>OBV</th><th>Volume fechado</th><th>Volume x</th></tr></thead><tbody id="waveRows"></tbody></table></div><p class="sub">14D e 30D são janelas apenas observacionais, calculadas com candles diários e sem gravação no histórico.</p><details><summary>Histórico isolado — coleta automática de 50 ativos</summary><p id="waveHistoryStatus"></p><div class="wave-scroll"><table class="price-track"><thead><tr><th>Janela</th><th>Preço inicial registrado</th><th>Preço final registrado</th><th>Variação</th><th>Posição</th><th>Amostras</th><th>Cobertura</th></tr></thead><tbody id="waveHistoryRows"></tbody></table></div><div class="wave-controls"><label>Leitura registrada em<input id="waveAnchor" type="datetime-local"></label><button id="waveOutcomes" type="button">Ver o que aconteceu depois</button></div><p id="waveOutcomeStatus"></p><div class="wave-scroll"><table class="price-track"><thead><tr><th>Após</th><th>Preço inicial</th><th>Preço posterior</th><th>Variação</th><th>Horário real</th></tr></thead><tbody id="waveOutcomeRows"></tbody></table></div><p class="sub">Histórico de preços amostrados a cada minuto, com retenção de 8 dias. Extremos entre amostras podem não aparecer. As janelas medem duração; os indicadores usam candles agregados do período correspondente. Nenhuma ordem é executada.</p></details>`;
+ root.innerHTML=`<div class="wave-controls"><label>Ativo<select id="waveSymbol">${pairs.map(([s,k])=>`<option value="${s}">${k}/USDT</option>`).join('')}</select></label><button id="waveRefresh" type="button">Atualizar mapa</button></div><p id="waveStatus" role="status">Carregando...</p><div id="waveSummary"></div><div class="wave-scroll"><table class="price-track"><thead><tr><th>Janela</th><th>Fase descritiva</th><th>Tendência estrutural</th><th>Variação</th><th>Mínima</th><th>Máxima</th><th>Preço atual</th><th>Posição na faixa</th><th>Amplitude</th><th>Recuo da máxima</th><th>Dist. mínima</th><th>Dist. máxima</th><th>RSI 14</th><th>CCI 14</th><th>MACD 12/26/9</th><th>ADX 14</th><th>ATR 14</th><th>OBV</th><th>Volume fechado</th><th>Volume x</th></tr></thead><tbody id="waveRows"></tbody></table></div><p class="sub">Tendência estrutural usa topos e fundos confirmados (2 candles depois), calculada na memória e sem gravação. 14D e 30D são observacionais; janelas curtas podem não ter candles suficientes.</p><details><summary>Histórico isolado — coleta automática de 50 ativos</summary><p id="waveHistoryStatus"></p><div class="wave-scroll"><table class="price-track"><thead><tr><th>Janela</th><th>Preço inicial registrado</th><th>Preço final registrado</th><th>Variação</th><th>Posição</th><th>Amostras</th><th>Cobertura</th></tr></thead><tbody id="waveHistoryRows"></tbody></table></div><div class="wave-controls"><label>Leitura registrada em<input id="waveAnchor" type="datetime-local"></label><button id="waveOutcomes" type="button">Ver o que aconteceu depois</button></div><p id="waveOutcomeStatus"></p><div class="wave-scroll"><table class="price-track"><thead><tr><th>Após</th><th>Preço inicial</th><th>Preço posterior</th><th>Variação</th><th>Horário real</th></tr></thead><tbody id="waveOutcomeRows"></tbody></table></div><p class="sub">Histórico de preços amostrados a cada minuto, com retenção de 8 dias. Extremos entre amostras podem não aparecer. As janelas medem duração; os indicadores usam candles agregados do período correspondente. Nenhuma ordem é executada.</p></details>`;
  const el=id=>document.getElementById(id);let busy=false,epoch=0,lastLive=0;const cache=new Map();
  async function request(url,options={}){const r=await fetch(url,{...options,signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error(`Fonte HTTP ${r.status}`);return r.json()}
  async function candles(symbol){
   const old=cache.get(symbol);if(old&&Date.now()-old.at<60000)return old.data;
-  const intervals=['1m','5m','1h','1d'];
-  const limits={'1m':600,'5m':240,'1h':240,'1d':260};
+  const intervals=['1m','5m','1h','4h','1d'];
+  const limits={'1m':600,'5m':240,'1h':240,'4h':200,'1d':260};
   const settled=await Promise.allSettled(intervals.map(interval=>request(`https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limits[interval]}`)));
   const result={};settled.forEach((r,i)=>{if(r.status==='fulfilled'&&Array.isArray(r.value)&&r.value.length)result[intervals[i]]=W.analyze(r.value)});
   if(!result['1m']?.length)throw Error('Preço atual indisponível');
   if(Date.now()-result['1m'].at(-1).t>180000)throw Error('Candles da fonte estão atrasados');
   cache.set(symbol,{at:Date.now(),data:result});return result;
+ }
+
+ function trendCandlesFor(minutes,c,now){
+  let series,duration;
+  if(minutes<=15){series=c['1m'];duration=60000;}
+  else if(minutes<=30){series=c['5m'];duration=300000;}
+  else if(minutes<=10080){series=c['1h'];duration=3600000;}
+  else {series=c['4h'];duration=14400000;}
+  if(!series)return [];
+  const cut=now-minutes*60000;
+  return series.filter(z=>z.t>=cut&&z.t+duration<=now);
  }
  function renderLive(c){
   const now=Date.now(),price=c['1m'].at(-1).c;
@@ -28,9 +39,10 @@
    const cut=now-minutes*60000,windowCandles=base.filter(z=>z.t+baseMinutes*60000>cut);
    if(!windowCandles.length||base[0].t>cut)return {label,error:true};
    const m=W.metrics(windowCandles[0].o,Math.min(...windowCandles.map(z=>z.l)),Math.max(...windowCandles.map(z=>z.h)),price);
-   return {label,minutes,...m,phase:W.classify(m),ind:minutes>10080?null:minutes>=1440?(c['1d']?W.indicators(W.aggregate(c['1d'],minutes)):null):W.indicators(W.aggregate(base,minutes))};
+   const trend=W.swingTrend(trendCandlesFor(minutes,c,now));
+   return {label,minutes,...m,trend,phase:W.classify(m),ind:minutes>10080?null:minutes>=1440?(c['1d']?W.indicators(W.aggregate(c['1d'],minutes)):null):W.indicators(W.aggregate(base,minutes))};
   });
-  el('waveRows').innerHTML=rows.map(r=>r.error?`<tr><td>${r.label}</td><td colspan="18">Fonte indisponível / janela incompleta</td></tr>`:`<tr><td><b>${r.label}</b></td><td>${r.phase}</td><td>${fmt(r.change)}%</td><td>${fmt(r.low,8)}</td><td>${fmt(r.high,8)}</td><td>${fmt(r.price,8)}</td><td>${fmt(r.position,1)}%</td><td>${fmt(r.amplitude)}%</td><td>${fmt(r.giveback)}%</td><td>${fmt(r.supportDistance)}%</td><td>${fmt(r.resistanceDistance)}%</td><td>${fmt(r.ind?.rsi,1)}</td><td>${fmt(r.ind?.cci,1)}</td><td>${fmt(r.ind?.macd,8)}</td><td>${fmt(r.ind?.adx,1)}</td><td>${fmt(r.ind?.atr,8)}</td><td>${fmt(r.ind?.obv,0)}</td><td>${fmt(r.ind?.volume,2)}</td><td>${fmt(r.ind?.volumeRatio,2)}</td></tr>`).join('');
+  el('waveRows').innerHTML=rows.map(r=>r.error?`<tr><td>${r.label}</td><td colspan="20">Fonte indisponível / janela incompleta</td></tr>`:`<tr><td><b>${r.label}</b></td><td>${r.phase}</td><td class="wave-trend wave-trend-${r.trend.kind}"><b>${r.trend.label}</b><small>${r.trend.detail}</small></td><td>${fmt(r.change)}%</td><td>${fmt(r.low,8)}</td><td>${fmt(r.high,8)}</td><td>${fmt(r.price,8)}</td><td>${fmt(r.position,1)}%</td><td>${fmt(r.amplitude)}%</td><td>${fmt(r.giveback)}%</td><td>${fmt(r.supportDistance)}%</td><td>${fmt(r.resistanceDistance)}%</td><td>${fmt(r.ind?.rsi,1)}</td><td>${fmt(r.ind?.cci,1)}</td><td>${fmt(r.ind?.macd,8)}</td><td>${fmt(r.ind?.adx,1)}</td><td>${fmt(r.ind?.atr,8)}</td><td>${fmt(r.ind?.obv,0)}</td><td>${fmt(r.ind?.volume,2)}</td><td>${fmt(r.ind?.volumeRatio,2)}</td></tr>`).join('');
   const valid=rows.filter(r=>!r.error),up=valid.filter(r=>r.change>0).length;
   el('waveSummary').textContent=`Preço: ${fmt(price,8)} USDT • ${up}/${valid.length} janelas com deslocamento positivo. Máximas e mínimas são referências da janela; rompimento e suporte precisam de confirmação. Candles em formação e bordas aproximadas pela resolução da fonte.`;
   lastLive=now;
