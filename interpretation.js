@@ -111,17 +111,17 @@
     const e = window.EPEarlyLegMotorV1.calc(x);
     if (!e || e.score < 35) return "";
     const cls = e.score >= 65 ? "rgate-green" : e.score >= 50 ? "rgate-yellow" : "";
-    return `<div class="rgate-line"><b>🧪 INÍCIO DE PERNADA:</b> <span class="${cls}"><b>${e.phase} • ${e.score}/100</b></span><small> • ${e.pattern || "estrutura em formação"} • PRE-LEG ${e.preLegScore || 0} • Futuros ${e.futuresScore ?? "—"} • RSI ${fmt(e.rsi)}</small></div>`;
+    return `<div class="rgate-line"><b>🧪 INÍCIO DE PERNADA:</b> <span class="${cls}"><b>${e.phase} • ${e.score}/100 • ${e.patternStatus||"OBSERVAR"}</b></span><small> • ${e.pattern || "estrutura em formação"} • ${e.patternReason||""} • volume ${fmt(e.patternVolumeRatio,2)}x • OBV ${e.patternObvConfirmed?"confirmado":"aguardando"} • PRE-LEG ${e.preLegScore || 0} • Futuros ${e.futuresScore ?? "—"} • RSI ${fmt(e.rsi)}</small></div>`;
   }
   function earlyCandidate(map) {
     if (!map?.entries || !window.EPEarlyLegMotorV1?.calc) return null;
     return [...map.entries()].map(([key,x])=>({key,x,e:window.EPEarlyLegMotorV1.calc(x)}))
-      .filter(z=>z.e?.score>=35).sort((a,b)=>b.e.score-a.e.score)[0]||null;
+      .filter(z=>z.e?.score>=35&&z.e?.patterns?.length).sort((a,b)=>(a.e.patternPriority??99)-(b.e.patternPriority??99)||b.e.score-a.e.score)[0]||null;
   }
   function earlyCard(z) {
     if(!z)return "";
     const e=z.e,name=String(z.key).replace("USDT","/USDT");
-    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button type="button" class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button><span class="sub" data-m6-status="${z.key}"></span></div></div>`;
+    return `<div class="decision-card watch"><div class="central-auto-head"><b>${name}</b><span>🧪 MOTOR 6 EXPERIMENTAL</span></div><div class="tier-badge watch">INÍCIO DE PERNADA • ${e.patternStatus||"OBSERVAÇÃO"}</div><div class="decision-main">🔎 ${e.phase}</div><div class="decision-score"><b>Score ${e.score}/100</b> • RSI ${fmt(e.rsi)} • ${e.pattern||"estrutura em formação"}</div><div class="compact-info"><div><b>Prioridade:</b> ${e.patternPriority??"—"} • <b>Estado:</b> ${e.patternReason||"aguardando padrão"}</div><div><b>Padrões:</b> ${e.patterns.length?e.patterns.join(" • "):"aguardando padrão prioritário"}</div><div><b>Volume:</b> ${fmt(e.patternVolumeRatio,2)}x • <b>OBV:</b> ${e.patternObvConfirmed?"confirmado":"aguardando"} • <b>PRE-LEG:</b> ${e.preLegScore||0}/100 • <b>Futuros:</b> ${e.futuresScore??"dados pendentes"}</div><div><b>Função:</b> antecipar acumulação/pressão antes da confirmação tardia dos 5 motores.</div></div><div class="action-box watch compact-action"><span>STATUS EXPERIMENTAL</span><b>ACOMPANHAR FORMAÇÃO — NÃO ALTERA O SINAL OFICIAL</b></div><div class="lop-actions"><button type="button" class="lop-btn" data-m6-track="1" data-asset="${z.key}">📡 MONITORAR SINAL MOTOR 6</button><span class="sub" data-m6-status="${z.key}"></span></div></div>`;
   }
   const motor6Immediate = new Map();
   function motor6Rows() {
@@ -132,11 +132,12 @@
   }
   function motor6WatchPanel() {
     let rows=motor6Rows();
-    if(!Array.isArray(rows)||!rows.length) return '<div class="m6-watch-empty">Nenhum sinal selecionado. Use “📡 MONITORAR SINAL MOTOR 6”.</div>';
+    if(!Array.isArray(rows)||!rows.length) return '<div class="m6-watch-empty">Nenhum ativo em observação. O Motor 6 adiciona padrões elegíveis antes da confirmação.</div>';
     return '<div class="m6-watch-grid">'+rows.map(o=>{
       const r=o.entryPrice?((+o.lastPrice-+o.entryPrice)/+o.entryPrice*100):0;
       const targets=[3,5,10,20,30,50].map(t=>'<span class="'+(o.targets?.[t]?'m6-hit':'')+'">+'+t+'% '+(o.targets?.[t]?'✓':'○')+'</span>').join(' ');
-      const dir=o.lastDir||o.entryDir||'BUY',dirLabel=dir==='SELL'?'🔴 BAIXA / VENDA':'🟢 ALTA / COMPRA';return '<div class="m6-watch-card"><div class="m6-watch-head"><b>'+String(o.asset).replace('USDT','/USDT')+'</b><span>'+dirLabel+' • '+String(o.lastPhase||o.entryPhase||'MONITORANDO')+'</span></div><div class="m6-watch-main">'+(+o.entryPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' → '+(+o.lastPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' <b class="'+(r>=0?'m6-pos':'m6-neg')+'">'+(r>=0?'+':'')+r.toFixed(2)+'%</b></div><div class="compact-info"><b>Score:</b> '+(o.entryScore??'—')+' → '+(o.lastScore??'—')+' • <b>Padrão:</b> '+(o.lastPattern||o.entryPattern||'—')+'<br><b>RSI inicial:</b> '+fmt(o.entryRsi)+' • <b>PRE-LEG:</b> '+(o.entryPreLeg??'—')+' • <b>Futuros:</b> '+(o.entryFutures??'—')+'<br><b>MFE:</b> +'+(+o.best||0).toFixed(2)+'% • <b>MAE:</b> '+(+o.worst||0).toFixed(2)+'%</div><div class="m6-targets">'+targets+'</div><button type="button" class="lop-btn lop-close" data-m6-close="'+o.id+'">ENCERRAR MONITORAMENTO</button></div>';
+      const dir=o.lastDir||o.entryDir||'BUY',dirLabel=dir==='SELL'?'🔴 BAIXA / VENDA':'🟢 ALTA / COMPRA',state=o.signalStatus||'EM MONITORAMENTO',patternState=o.lastPatternStatus||o.entryPatternStatus||'aguardando confirmação',reason=o.lastPatternReason||o.entryPatternReason||'';
+      return '<div class="m6-watch-card"><div class="m6-watch-head"><b>'+String(o.asset).replace('USDT','/USDT')+'</b><span>'+dirLabel+' • '+state+'</span></div><div class="m6-watch-main">'+(+o.entryPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' → '+(+o.lastPrice).toLocaleString('pt-BR',{maximumFractionDigits:6})+' <b class="'+(r>=0?'m6-pos':'m6-neg')+'">'+(r>=0?'+':'')+r.toFixed(2)+'%</b></div><div class="compact-info"><b>Score:</b> '+(o.entryScore??'—')+' → '+(o.lastScore??'—')+' • <b>Padrão:</b> '+(o.lastPattern||o.entryPattern||'—')+'<br><b>Confirmação:</b> '+patternState+(reason?' • '+reason:'')+'<br><b>RSI inicial:</b> '+fmt(o.entryRsi)+' • <b>PRE-LEG:</b> '+(o.entryPreLeg??'—')+' • <b>Futuros:</b> '+(o.entryFutures??'—')+'<br><b>MFE:</b> +'+(+o.best||0).toFixed(2)+'% • <b>MAE:</b> '+(+o.worst||0).toFixed(2)+'%</div><div class="m6-targets">'+targets+'</div><button type="button" class="lop-btn lop-close" data-m6-close="'+o.id+'">ENCERRAR MONITORAMENTO</button></div>';
     }).join('')+'</div>';
   }
   function renderMotor6Watch() {
@@ -292,7 +293,7 @@
     );
   }
   let last = "";
-  const diagnostics = { version: 58, errors: {} };
+  const diagnostics = { version: 59, errors: {} };
   function marketCard(market) {
     try {
       const app = window.CryptoApp;
