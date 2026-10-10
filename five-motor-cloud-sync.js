@@ -239,7 +239,7 @@
     }
     clearTimeout(timer);
     sync();
-    setInterval(() => { if (!document.hidden) sync(); }, 60000);
+    setInterval(() => { if (!document.hidden) sync(); }, 300000);
   }
   token = readToken();
   window.addEventListener("live-operations-ready", init);
