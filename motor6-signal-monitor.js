@@ -81,6 +81,6 @@ function tick(){
  save();autoScan();window.dispatchEvent(new CustomEvent('ep-motor6-watch-updated'));
 }
 ['crypto-data-updated','ep-early-leg-motor-ready','ep-early-leg-updated'].forEach(ev=>window.addEventListener(ev,autoScan));
-setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);setInterval(()=>{if(!document.hidden)syncRemote()},60000);
+setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);setInterval(()=>{if(!document.hidden)syncRemote()},300000);
 window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,recordedHistory:()=>remoteHistory,TARGETS,AUTO_SCORE,QUALITY_MIN,MAX_OPEN};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
 })();
