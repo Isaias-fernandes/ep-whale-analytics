@@ -278,7 +278,7 @@
         }};
         window.EPMotor6Watch=monitor;
       }
-      const before=(monitor.get?.()||[]).find(x=>String(x.asset||'').replace(/[^A-Z0-9]/gi,'').toUpperCase()===String(b.dataset.asset||'').replace(/[^A-Z0-9]/gi,'').toUpperCase());const o = monitor.add(b.dataset.asset);
+      const before=(monitor.get?.()||[]).find(x=>String(x.asset||'').replace(/[^A-Z0-9]/gi,'').toUpperCase()===String(b.dataset.asset||'').replace(/[^A-Z0-9]/gi,'').toUpperCase());const o = monitor.add(b.dataset.asset,{watchOnly:true,source:'manual-observation'});
       if (o) {
         motor6Immediate.set(o.id||o.asset,o);
         b.textContent='✅ SINAL EM MONITORAMENTO';
