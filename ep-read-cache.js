@@ -1,9 +1,9 @@
 (() => {
   const originalFetch = window.fetch.bind(window);
   const policies = new Map([
-    ['ep-24x7-status', 120000],
-    ['ep-five-motor-watch', 60000],
-    ['ep-motor6-watch', 60000]
+    ['ep-24x7-status', 300000],
+    ['ep-five-motor-watch', 300000],
+    ['ep-motor6-watch', 300000]
   ]);
   const entries = new Map();
   window.fetch = function(input, options = {}) {
