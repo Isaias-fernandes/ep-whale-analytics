@@ -314,7 +314,7 @@
     refreshFields();
     window.dispatchEvent(new CustomEvent("live-operations-ready"));
     setInterval(() => { if (!document.hidden) tick(); }, 750);
-    setInterval(() => { if (!document.hidden) syncRemote(); }, 60000);
+    setInterval(() => { if (!document.hidden) syncRemote(); }, 300000);
     syncRemote();
   }
   setTimeout(init, 100);
