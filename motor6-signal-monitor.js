@@ -3,7 +3,7 @@
  * Autoentrada: score técnico >= 50 + filtro de qualidade completo >= 80/100, sem risco e com fonte. Encerramento manual arquiva o episódio.
  */
 (()=>{'use strict';
-const API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-motor6-watch',KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,QUALITY_MIN=80,MAX_OPEN=50,COOLDOWN_MS=30*60*1000;
+const API='https://qhgclnkctpzumtybailv.supabase.co/functions/v1/ep-motor6-watch',KEY='ep_motor6_watch_v1',HKEY='ep_motor6_watch_history_v1',COOLDOWN_KEY='ep_motor6_watch_cooldown_v1',TARGETS=[3,5,10,20,30,50],AUTO_SCORE=50,AUTO_WATCH_SCORE=35,QUALITY_MIN=80,MAX_OPEN=50,COOLDOWN_MS=30*60*1000;
 let open=[],hist=[],remoteHistory=[],cooldown={},dismissed=[];
 try{dismissed=JSON.parse(localStorage.getItem('ep_motor6_watch_dismissed_v1')||'[]');if(!Array.isArray(dismissed))dismissed=[]}catch{dismissed=[]}
 try{open=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(open))open=[]}catch{open=[]}
@@ -33,16 +33,18 @@ function price(x){const p=+(x?.livePrice??x?.price??x?.regularMarketPrice??x?.cl
 function ret(p0,p,dir='BUY'){if(!Number.isFinite(p0)||!Number.isFinite(p)||!p0)return NaN;const r=(p-p0)/p0*100;return dir==='SELL'?-r:r}
 function snapshot(sym,source='manual'){
  const x=asset(sym),e=window.EPEarlyLegMotorV1?.calc?.(x),p=price(x);if(!x||!e||!Number.isFinite(p))return null;
- const n=norm(sym),now=Date.now();return{id:'m6:'+n+':'+now,asset:n,source,entryAt:now,entryPrice:p,lastPrice:p,entryScore:+e.score||0,entryDir:e.dir||'BUY',entryPhase:e.phase,entryPattern:e.pattern,entryRsi:e.rsi,entryPreLeg:e.preLegScore,entryFutures:e.futuresScore,best:0,worst:0,targets:{},lastScore:+e.score||0,lastDir:e.dir||'BUY',lastPhase:e.phase,lastPattern:e.pattern,updates:0};
+ const n=norm(sym),now=Date.now();return{id:'m6:'+n+':'+now,asset:n,source,entryAt:now,entryPrice:p,lastPrice:p,entryScore:+e.score||0,entryDir:e.dir||'BUY',entryPhase:e.phase,entryPattern:e.pattern,entryRsi:e.rsi,entryPreLeg:e.preLegScore,entryFutures:e.futuresScore,signalStatus:'OBSERVAÇÃO',entryPatternStatus:e.patternStatus,entryPatternReason:e.patternReason,best:0,worst:0,targets:{},lastScore:+e.score||0,lastDir:e.dir||'BUY',lastPhase:e.phase,lastPattern:e.pattern,lastPatternStatus:e.patternStatus,lastPatternReason:e.patternReason,updates:0};
 }
 function add(sym,opts={}){
  const n=norm(sym),existing=open.find(z=>norm(z.asset)===n);if(existing)return existing;
  if(open.length>=MAX_OPEN){if(!opts.silent)alert('Motor 6: limite de '+MAX_OPEN+' sinais em acompanhamento.');return null}
  const x=asset(n),e=x&&window.EPEarlyLegMotorV1?.calc?.(x);
  if(!x||!e||!Number.isFinite(+e.score)){if(!opts.silent)alert('Motor 6: dados do ativo ainda não disponíveis.');return null}
- if(+e.score<AUTO_SCORE){if(!opts.silent)alert('Motor 6: score técnico abaixo de '+AUTO_SCORE+'.');return null}
- const gate=qualityGate(n);if(!gate.ok){if(!opts.silent)alert('Motor 6 não gerou sinal para '+String(sym).replace(/USDT$/,'/USDT')+': '+gate.reason+'. Complete o filtro, sem itens de risco, nota mínima 80/100 e fonte registrada.');return null}
+ const watchOnly=opts.watchOnly===true,minimum=watchOnly?AUTO_WATCH_SCORE:AUTO_SCORE;
+ if(+e.score<minimum){if(!opts.silent)alert('Motor 6: score técnico abaixo de '+minimum+'.');return null}
+ const gate=qualityGate(n);if(!watchOnly&&!gate.ok){if(!opts.silent)alert('Motor 6 não confirmou sinal para '+String(sym).replace(/USDT$/,'/USDT')+': '+gate.reason+'. Complete o filtro, sem itens de risco, nota mínima 80/100 e fonte registrada.');return null}
  const o=snapshot(n,opts.source||'manual');if(!o){if(!opts.silent)alert('Motor 6: dados do ativo ainda não disponíveis.');return null}
+ o.signalStatus=(!watchOnly&&gate.ok&&e.patternConfirmed&&+e.score>=AUTO_SCORE)?'CONFIRMADO':'OBSERVAÇÃO';
  open.push(o);save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:o}));return o;
 }
 function close(id,reason='MANUAL'){
@@ -60,7 +62,10 @@ function autoScan(){
    const sym=norm(key||x?.sym||x?.key);if(!sym||open.some(o=>norm(o.asset)===sym))continue;
    if(now-(+cooldown[sym]||0)<COOLDOWN_MS)continue;
    let e;try{e=window.EPEarlyLegMotorV1.calc(x)}catch{continue}
-   if(x.observedAt&&now-x.observedAt<=180000&&e&&Number.isFinite(+e.score)&&+e.score>=AUTO_SCORE&&qualityGate(sym).ok)add(sym,{silent:true,source:'auto-score-'+AUTO_SCORE+'-quality-'+QUALITY_MIN});
+   if(x.observedAt&&now-x.observedAt<=180000&&e&&Number.isFinite(+e.score)&&+e.score>=AUTO_WATCH_SCORE&&e.pattern&&Array.isArray(e.patterns)&&e.patterns.length){
+    const gate=qualityGate(sym),confirmed=+e.score>=AUTO_SCORE&&e.patternConfirmed===true&&gate.ok;
+    add(sym,{silent:true,watchOnly:!confirmed,source:confirmed?'auto-pattern-confirmed':'auto-pattern-watch'});
+   }
  }
 }
 function tick(){
@@ -71,7 +76,7 @@ function tick(){
   let e=null;try{e=window.EPEarlyLegMotorV1?.calc?.(x)||null}catch{}
   const r=ret(o.entryPrice,p,o.entryDir);
   o.lastPrice=p;o.lastPriceAt=now;o.updates=(o.updates||0)+1;
-  if(e){o.lastScore=+e.score||0;o.lastDir=e.dir||o.lastDir||'BUY';o.lastPhase=e.phase;o.lastPattern=e.pattern;o.lastRsi=e.rsi;o.lastPreLeg=e.preLegScore;o.lastFutures=e.futuresScore}
+  if(e){o.lastScore=+e.score||0;o.lastDir=e.dir||o.lastDir||'BUY';o.lastPhase=e.phase;o.lastPattern=e.confirmedPattern||e.pattern;o.lastPatternStatus=e.patternStatus;o.lastPatternReason=e.patternReason;o.lastPatternConfirmed=!!e.patternConfirmed;o.lastRsi=e.rsi;o.lastPreLeg=e.preLegScore;o.lastFutures=e.futuresScore;if(o.signalStatus==='OBSERVAÇÃO'&&e.patternConfirmed===true&&+e.score>=AUTO_SCORE&&qualityGate(o.asset).ok){o.signalStatus='CONFIRMADO';o.confirmedAt=now;o.confirmedPrice=p}}
   if(Number.isFinite(r)){
    o.best=Math.max(+o.best||0,r);o.worst=Math.min(+o.worst||0,r);
    if(!o.targets||typeof o.targets!=='object')o.targets={};
@@ -82,5 +87,5 @@ function tick(){
 }
 ['crypto-data-updated','ep-early-leg-motor-ready','ep-early-leg-updated'].forEach(ev=>window.addEventListener(ev,autoScan));
 setInterval(()=>{if(!document.hidden){autoScan();if(open.length)tick()}},5000);setInterval(()=>{if(!document.hidden)syncRemote()},300000);
-window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,recordedHistory:()=>remoteHistory,TARGETS,AUTO_SCORE,QUALITY_MIN,MAX_OPEN};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
+window.EPMotor6Watch={add,close,tick,autoScan,syncRemote,get:()=>open,history:()=>hist,recordedHistory:()=>remoteHistory,TARGETS,AUTO_SCORE,AUTO_WATCH_SCORE,QUALITY_MIN,MAX_OPEN};syncRemote();window.dispatchEvent(new Event('ep-motor6-watch-ready'));setTimeout(autoScan,1200);
 })();
