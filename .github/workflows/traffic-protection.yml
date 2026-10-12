@@ -1,0 +1,25 @@
+name: Traffic protection
+on:
+  push:
+    paths:
+      - 'supabase/functions/**'
+      - 'ep-read-cache.js'
+      - 'scripts/check-traffic-protection.mjs'
+      - '.github/workflows/traffic-protection.yml'
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+      - 'ep-read-cache.js'
+      - 'scripts/check-traffic-protection.mjs'
+      - '.github/workflows/traffic-protection.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/check-traffic-protection.mjs
