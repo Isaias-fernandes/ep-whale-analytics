@@ -9,11 +9,12 @@ try{dismissed=JSON.parse(localStorage.getItem('ep_motor6_watch_dismissed_v1')||'
 try{open=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(open))open=[]}catch{open=[]}
 try{hist=JSON.parse(localStorage.getItem(HKEY)||'[]');if(!Array.isArray(hist))hist=[]}catch{hist=[]}
 try{cooldown=JSON.parse(localStorage.getItem(COOLDOWN_KEY)||'{}')||{}}catch{cooldown={}}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(open));localStorage.setItem(HKEY,JSON.stringify(hist.slice(-500)));localStorage.setItem(COOLDOWN_KEY,JSON.stringify(cooldown))}catch{}};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(open));localStorage.setItem(HKEY,JSON.stringify(hist.slice(-500)));localStorage.setItem(COOLDOWN_KEY,JSON.stringify(cooldown));localStorage.setItem('ep_motor6_watch_dismissed_v1',JSON.stringify([...new Set(dismissed.map(norm).filter(Boolean))]))}catch{}};
 async function remote(){try{const r=await fetch(API,{method:'GET',cache:'no-store'});return r.ok?await r.json():null}catch{return null}}
-async function syncRemote(){const j=await remote();if(!j?.rows)return;remoteHistory=Array.isArray(j.history)?j.history:[];const local=new Map(open.map(o=>[norm(o.asset),o]));for(const r of j.rows){const n=norm(r.asset);if(dismissed.includes(n)||local.has(n))continue;const o={id:'m6:'+n+':shared',asset:n,source:r.source,entryAt:new Date(r.entry_at).getTime(),entryPrice:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryScore:r.entry_score,entryDir:r.entry_dir||'BUY',entryPhase:r.entry_phase,entryPattern:r.entry_pattern,entryRsi:r.entry_rsi,entryPreLeg:r.entry_pre_leg,entryFutures:r.entry_futures,best:+r.best_pct||0,worst:+r.worst_pct||0,targets:r.targets||{},lastScore:r.last_score,lastDir:r.last_dir||r.entry_dir||'BUY',lastPhase:r.last_phase,lastPattern:r.last_pattern,readOnlySeed:true};local.set(n,o)}open=[...local.values()];save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'))}
+async function syncRemote(){const j=await remote();if(!j?.rows)return;remoteHistory=Array.isArray(j.history)?j.history:[];const local=new Map(open.map(o=>[norm(o.asset),o]));for(const r of j.rows){const n=norm(r.asset);if(isDismissed(n)||local.has(n))continue;const o={id:'m6:'+n+':shared',asset:n,source:r.source,entryAt:new Date(r.entry_at).getTime(),entryPrice:+r.entry_price,lastPrice:+(r.last_price??r.entry_price),entryScore:r.entry_score,entryDir:r.entry_dir||'BUY',entryPhase:r.entry_phase,entryPattern:r.entry_pattern,entryRsi:r.entry_rsi,entryPreLeg:r.entry_pre_leg,entryFutures:r.entry_futures,best:+r.best_pct||0,worst:+r.worst_pct||0,targets:r.targets||{},lastScore:r.last_score,lastDir:r.last_dir||r.entry_dir||'BUY',lastPhase:r.last_phase,lastPattern:r.last_pattern,readOnlySeed:true};local.set(n,o)}open=[...local.values()];save();window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed'))}
 function map(){return window.CryptoApp?.getData?.()}
 function norm(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+function isDismissed(sym){const n=norm(sym);return !!n&&dismissed.some(x=>norm(x)===n)}
 function qualityGate(sym){
  let q=null;try{q=window.EPMotor6Fundamental?.get?.(sym)||null}catch{}
  if(!q)return{ok:false,reason:'Filtro de qualidade ainda não carregou.'};
@@ -37,6 +38,7 @@ function snapshot(sym,source='manual'){
 }
 function add(sym,opts={}){
  const n=norm(sym),existing=open.find(z=>norm(z.asset)===n);if(existing)return existing;
+ if(isDismissed(n)){if(opts.silent)return null;dismissed=dismissed.filter(x=>norm(x)!==n)}
  if(open.length>=MAX_OPEN){if(!opts.silent)alert('Motor 6: limite de '+MAX_OPEN+' sinais em acompanhamento.');return null}
  const x=asset(n),e=x&&window.EPEarlyLegMotorV1?.calc?.(x);
  if(!x||!e||!Number.isFinite(+e.score)){if(!opts.silent)alert('Motor 6: dados do ativo ainda não disponíveis.');return null}
@@ -51,7 +53,7 @@ function close(id,reason='MANUAL'){
  const i=open.findIndex(z=>z.id===id);if(i<0)return false;
  const o=open[i],x=asset(o.asset),p=price(x),exit=Number.isFinite(p)?p:o.lastPrice,now=Date.now();
  const archived={...o,exitAt:now,exitPrice:exit,result:ret(o.entryPrice,exit,o.entryDir),closeReason:reason,lastPrice:exit,status:'CLOSED'};
- hist.push(archived);open.splice(i,1);cooldown[norm(o.asset)]=now;if(o.readOnlySeed&&!dismissed.includes(norm(o.asset))){dismissed.push(norm(o.asset));try{localStorage.setItem('ep_motor6_watch_dismissed_v1',JSON.stringify(dismissed))}catch{}}save();
+ hist.push(archived);open.splice(i,1);cooldown[norm(o.asset)]=now;const closedAsset=norm(o.asset);if(closedAsset&&!isDismissed(closedAsset))dismissed.push(closedAsset);save();
  window.dispatchEvent(new CustomEvent('ep-motor6-watch-changed',{detail:{closed:archived}}));return true;
 }
 function autoScan(){
@@ -59,7 +61,7 @@ function autoScan(){
  const now=Date.now();
  for(const [key,x] of m.entries()){
    if(open.length>=MAX_OPEN)break;
-   const sym=norm(key||x?.sym||x?.key);if(!sym||open.some(o=>norm(o.asset)===sym))continue;
+   const sym=norm(key||x?.sym||x?.key);if(!sym||isDismissed(sym)||open.some(o=>norm(o.asset)===sym))continue;
    if(now-(+cooldown[sym]||0)<COOLDOWN_MS)continue;
    let e;try{e=window.EPEarlyLegMotorV1.calc(x)}catch{continue}
    if(x.observedAt&&now-x.observedAt<=180000&&e&&Number.isFinite(+e.score)&&+e.score>=AUTO_WATCH_SCORE&&e.pattern&&Array.isArray(e.patterns)&&e.patterns.length){
