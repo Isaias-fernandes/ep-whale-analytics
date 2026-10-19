@@ -95,6 +95,7 @@
     const flow = input.flow || null;
     return {
       asset: input.asset || "",
+      timeframe: input.timeframe || "janela atual",
       fresh: Number.isFinite(+input.observedAt) && input.now - +input.observedAt <= FRESH_MS,
       price,
       score: Number(e.score) || 0,
@@ -141,7 +142,7 @@
       '<div><b>Compressão</b><span>' + compression + '</span></div>' +
       '<div><b>Bollinger</b><span>' + squeeze + '</span></div>' +
       '<div><b>Volume + OBV</b><span>' + fmt(a.volumeRatio, 2) + '× média • ' + obv + (a.patternObv ? ' • confirma padrão' : '') + '</span></div>' +
-      '<div><b>Perfil H1 aproximado</b><span>' + profile + '</span></div>' +
+      '<div><b>Perfil aproximado • ' + esc(a.timeframe) + '</b><span>' + profile + '</span></div>' +
       '<div><b>Fluxo / book</b><span>' + flowText(a.flow) + '</span></div>' +
       '<div><b>Liquidações</b><span>' + liquidation + '</span></div>' +
       '<div><b>On-chain</b><span>' + onChain + '</span></div>' +
@@ -175,7 +176,7 @@
         try { e = win.EPEarlyLegMotorV1.calc(x); } catch { continue; }
         if (!e || +e.score < 35 || !Array.isArray(x?.candles) || x.candles.length < 35) continue;
         const flow = readFlow(x);
-        rows.push(analyze({ asset: key || x.sym || x.key, candles: x.candles, observedAt: x.observedAt, now, price: x.livePrice ?? x.price, early: e, flow }));
+        rows.push(analyze({ asset: key || x.sym || x.key, timeframe: doc.getElementById("tf")?.value || "janela atual", candles: x.candles, observedAt: x.observedAt, now, price: x.livePrice ?? x.price, early: e, flow }));
       }
       rows.sort((a, b) => b.score - a.score);
       target.innerHTML = rows.length
