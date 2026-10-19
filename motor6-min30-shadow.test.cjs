@@ -4,8 +4,9 @@ const shadow = require('./motor6-min30-shadow.js');
 
 test('minimum-30d shadow accepts only fresh complete near-minimum confirmed signals', () => {
   const baseSignal = { dir: 'BUY', confirmedPattern: 'Bull Pennant', patternConfirmed: true, score: 72 };
-  const baseMinimum = { updatedAt: Date.now(), windows: { '30d': { low: 100, distance: 0.3, candles: 720 } } };
+  const baseMinimum = { updatedAt: Date.now(), price: 100.3, windows: { '30d': { low: 100, distance: 0.3, candles: 720 } } };
   assert.equal(shadow.assess(baseSignal, baseMinimum).eligible, true);
+  assert.equal(shadow.assess(baseSignal, baseMinimum, Date.now(), 100.8).eligible, false);
   assert.equal(shadow.assess(baseSignal, { ...baseMinimum, windows: { '30d': { low: 100, distance: 0.51, candles: 720 } } }).eligible, false);
   assert.equal(shadow.assess({ ...baseSignal, patternConfirmed: false }, baseMinimum).eligible, false);
   assert.equal(shadow.assess({ ...baseSignal, score: 49 }, baseMinimum).eligible, false);
