@@ -67,7 +67,7 @@
       const ix = Math.max(0, Math.min(bins - 1, Math.floor((typical - low) / step)));
       volume[ix] += +c.v || 0;
     }
-    const sorted = [...volume].sort((a, b) => a - b);
+    const sorted = volume.filter(v => v > 0).sort((a, b) => a - b);
     const current = +candles.at(-1).c;
     const currentIx = Math.max(0, Math.min(bins - 1, Math.floor((current - low) / step)));
     const pocIx = volume.indexOf(Math.max(...volume));
@@ -75,7 +75,7 @@
       poc: low + (pocIx + 0.5) * step,
       currentBinLow: low + currentIx * step,
       currentBinHigh: low + (currentIx + 1) * step,
-      lowNodeProxy: volume[currentIx] <= sorted[Math.floor((bins - 1) * 0.25)],
+      lowNodeProxy: sorted.length > 0 && volume[currentIx] <= sorted[Math.floor((sorted.length - 1) * 0.25)],
       currentBinVolume: volume[currentIx]
     };
   }
@@ -155,7 +155,8 @@
         const state = win.EPBackend24?.get?.()?.state || [];
         const sym = x?.sym || x?.key;
         const row = state.find(z => z.symbol === sym || z.asset === String(sym || "").replace("USDT", ""));
-        if (!row || Date.now() - Date.parse(row.updated_at) > FRESH_MS) return null;
+        const updatedAt = Date.parse(row?.updated_at);
+        if (!row || !Number.isFinite(updatedAt) || Date.now() - updatedAt > FRESH_MS) return null;
         const m = row.metrics || {};
         return { flow: m.flow != null && Number.isFinite(+m.flow) ? +m.flow : null, book: m.book != null && Number.isFinite(+m.book) ? +m.book : null, oi: m.oiChange != null && Number.isFinite(+m.oiChange) ? +m.oiChange : null, label: "leitura existente do backend 24/7" };
       } catch { return null; }
