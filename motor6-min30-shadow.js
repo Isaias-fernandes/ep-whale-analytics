@@ -26,7 +26,7 @@
   function assess(signal, minimum, now = Date.now()) {
     const w = minimum?.windows?.["30d"];
     const fresh = !!minimum && !minimum.error && Number.isFinite(+minimum.updatedAt) && now - +minimum.updatedAt <= 8 * 60 * 1000;
-    const policy = root?.EPMotor6PatternPolicy;
+    const policy = root?.EPMotor6PatternPolicy || (typeof require === "function" ? require("./motor6-pattern-policy.js") : null);
     if (!policy?.assessMin30) return { eligible: false, reason: "política do Motor 6 indisponível" };
     return policy.assessMin30({
       fresh,
