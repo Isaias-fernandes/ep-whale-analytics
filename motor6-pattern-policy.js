@@ -74,5 +74,37 @@
     };
   }
 
-  return { VERSION: "lab-pattern-policy-v1", VOLUME_MIN, SELL_WEIGHT_FACTOR, RULES, assess };
+  const MIN30_DISTANCE_MAX_PCT = 0.5;
+  const MIN30_SCORE_MIN = 50;
+  const MIN30_PATTERNS = Object.freeze({
+    BUY: Object.freeze(["Three Rising Valleys", "Bull Pennant", "Bull Flag", "Double Bottom", "Falling Wedge"]),
+    SELL: Object.freeze(["Bear Pennant", "Bear Flag", "Rectangle Distribution", "Double Top", "Rising Wedge"])
+  });
+
+  function assessMin30(input = {}) {
+    const direction = input.direction === "SELL" ? "SELL" : input.direction === "BUY" ? "BUY" : null;
+    const distance = Number(input.distancePct);
+    if (input.fresh !== true || input.minimumValid !== true || !Number.isFinite(distance)) {
+      return { eligible: false, reason: "mínima de 30 dias ausente, incompleta ou desatualizada" };
+    }
+    if (Number(input.candleCount) < 700) {
+      return { eligible: false, reason: "histórico menor que 700 candles H1" };
+    }
+    if (Math.abs(distance) > MIN30_DISTANCE_MAX_PCT) {
+      return { eligible: false, reason: "ativo fora da faixa de 0,50% da mínima de 30 dias" };
+    }
+    if (!direction) return { eligible: false, reason: "direção não identificada" };
+    if (!MIN30_PATTERNS[direction].includes(String(input.pattern || ""))) {
+      return { eligible: false, reason: "padrão não está entre os prioritários da direção" };
+    }
+    if (input.patternConfirmed !== true) {
+      return { eligible: false, reason: "padrão ainda sem confirmação de volume/OBV ou rompimento" };
+    }
+    if (Number(input.score) < MIN30_SCORE_MIN) {
+      return { eligible: false, reason: "score técnico abaixo de 50/100" };
+    }
+    return { eligible: true, reason: "mínima 30D e padrão direcional confirmados", direction, pattern: String(input.pattern), distancePct: distance };
+  }
+
+  return { VERSION: "lab-pattern-policy-v1", VOLUME_MIN, SELL_WEIGHT_FACTOR, RULES, assess, MIN30_DISTANCE_MAX_PCT, MIN30_SCORE_MIN, MIN30_PATTERNS, assessMin30 };
 });
