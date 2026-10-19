@@ -87,7 +87,7 @@
     if (input.fresh !== true || input.minimumValid !== true || !Number.isFinite(distance)) {
       return { eligible: false, reason: "mínima de 30 dias ausente, incompleta ou desatualizada" };
     }
-    if (Number(input.candleCount) < 700) {
+    if (!(Number(input.candleCount) >= 700)) {
       return { eligible: false, reason: "histórico menor que 700 candles H1" };
     }
     if (Math.abs(distance) > MIN30_DISTANCE_MAX_PCT) {
@@ -100,7 +100,7 @@
     if (input.patternConfirmed !== true) {
       return { eligible: false, reason: "padrão ainda sem confirmação de volume/OBV ou rompimento" };
     }
-    if (Number(input.score) < MIN30_SCORE_MIN) {
+    if (!(Number(input.score) >= MIN30_SCORE_MIN)) {
       return { eligible: false, reason: "score técnico abaixo de 50/100" };
     }
     return { eligible: true, reason: "mínima 30D e padrão direcional confirmados", direction, pattern: String(input.pattern), distancePct: distance };
