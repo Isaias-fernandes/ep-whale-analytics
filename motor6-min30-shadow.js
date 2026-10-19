@@ -23,16 +23,19 @@
     return direction === "SELL" ? -raw : raw;
   };
 
-  function assess(signal, minimum, now = Date.now()) {
+  function assess(signal, minimum, now = Date.now(), currentPrice = +minimum?.price) {
     const w = minimum?.windows?.["30d"];
     const fresh = !!minimum && !minimum.error && Number.isFinite(+minimum.updatedAt) && now - +minimum.updatedAt <= 8 * 60 * 1000;
     const policy = root?.EPMotor6PatternPolicy || (typeof require === "function" ? require("./motor6-pattern-policy.js") : null);
     if (!policy?.assessMin30) return { eligible: false, reason: "política do Motor 6 indisponível" };
+    const distancePct = Number.isFinite(+currentPrice) && Number.isFinite(+w?.low) && +w.low > 0
+      ? (+currentPrice - +w.low) / +w.low * 100
+      : NaN;
     return policy.assessMin30({
       fresh,
       minimumValid: !!w && Number.isFinite(+w.low) && +w.low > 0,
       candleCount: +w?.candles || 0,
-      distancePct: +w?.distance,
+      distancePct,
       direction: signal?.dir,
       pattern: signal?.confirmedPattern,
       patternConfirmed: signal?.patternConfirmed === true,
@@ -60,7 +63,7 @@
         id: "m6-min30:" + normalize(asset) + ":" + now,
         asset: normalize(asset), source: "motor6-min30-shadow",
         direction: signal.dir, pattern: signal.confirmedPattern, score: +signal.score,
-        minimum30: +w.low, distancePct: +w.distance, entryPrice: p, lastPrice: p,
+        minimum30: +w.low, distancePct: +gate.distancePct, entryPrice: p, lastPrice: p,
         entryAt: now, status: "OPEN", bestPct: 0, worstPct: 0, resultPct: null,
         gateReason: gate.reason
       };
@@ -132,11 +135,12 @@
       const target = el();
       if (!target) return;
       const open = episodes.filter(e => e.status === "OPEN");
-      const closed = episodes.filter(e => e.status === "CLOSED" && Number.isFinite(+e.resultPct));
+      const closed = episodes.filter(e => e.status === "CLOSED" && e.closeReason === "HORIZON_96H" && Number.isFinite(+e.resultPct));
+      const manual = episodes.filter(e => e.status === "CLOSED" && e.closeReason === "MANUAL_LOCAL");
       const wins = closed.filter(e => +e.resultPct > 0).length;
       const mean = closed.length ? closed.reduce((s,e) => s + +e.resultPct, 0) / closed.length : null;
       const signals = current.filter(e => e.status === "OPEN");
-      target.innerHTML = '<div class="m7-summary"><div class="m7-chip"><b>' + signals.length + '</b><br><span class="sub">novos/ativos elegíveis</span></div><div class="m7-chip"><b>' + open.length + '</b><br><span class="sub">em teste local</span></div><div class="m7-chip"><b>' + closed.length + '</b><br><span class="sub">fechados no horizonte/ manual</span></div><div class="m7-chip"><b>' + (closed.length ? wins + '/' + closed.length + ' (' + (100*wins/closed.length).toFixed(1) + '%)' : '—') + '</b><br><span class="sub">positivos • média ' + (mean == null ? '—' : (mean >= 0 ? '+' : '') + mean.toFixed(2) + '%') + '</span></div></div>' +
+      target.innerHTML = '<div class="m7-summary"><div class="m7-chip"><b>' + signals.length + '</b><br><span class="sub">novos/ativos elegíveis</span></div><div class="m7-chip"><b>' + open.length + '</b><br><span class="sub">em teste local</span></div><div class="m7-chip"><b>' + closed.length + '</b><br><span class="sub">fechados no horizonte/ manual</span></div><div class="m7-chip"><b>' + (closed.length ? wins + '/' + closed.length + ' (' + (100*wins/closed.length).toFixed(1) + '%)' : '—') + '</b><br><span class="sub">positivos 96h • média ' + (mean == null ? '—' : (mean >= 0 ? '+' : '') + mean.toFixed(2) + '%') + '</span></div></div>' +
         (open.length ? '<div class="m7-grid">' + open.map(e => {
           const r = directionalReturn(+e.entryPrice, +e.lastPrice, e.direction);
           return '<article class="m7-card m7-confirmed"><h3>' + e.asset.replace(/USDT$/,'') + '/USDT — ' + (e.direction === 'BUY' ? 'COMPRA' : 'VENDA') + '</h3><div class="m7-pills"><span class="m7-pill">SINAL SOMBRA</span><span class="m7-pill">' + e.pattern + '</span></div><div class="row"><span>Distância da mínima 30d na entrada</span><b>' + fmt(e.distancePct,3) + '%</b></div><div class="row"><span>Score técnico • Entrada</span><b>' + fmt(e.score,0) + '/100</b></div><div class="row"><span>Entrada → preço atual</span><b>' + fmt(e.entryPrice,6) + ' → ' + fmt(e.lastPrice,6) + ' (' + (r >= 0 ? '+' : '') + fmt(r) + '%)</b></div><div class="row"><span>MFE / MAE direcional</span><b>+' + fmt(e.bestPct) + '% / ' + fmt(e.worstPct) + '%</b></div><div class="row"><span>Tempo de teste</span><b>' + fmt((Date.now()-e.entryAt)/3600000,1) + ' h / 96 h</b></div><button type="button" data-m6-min30-close="' + e.id + '">Encerrar teste local</button></article>';
