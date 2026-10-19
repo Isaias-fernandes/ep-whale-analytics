@@ -39,3 +39,20 @@ test('volume confirmation uses the EP Lab 1.2x threshold', () => {
   assert.equal(policy.assess('Bull Flag', 'BUY', { volumeRatio: 1.19, obvConfirmed: true }).confirmed, false);
   assert.equal(policy.assess('Bull Flag', 'BUY', { volumeRatio: 1.2, obvConfirmed: true }).confirmed, true);
 });
+
+
+test('Min30 shadow signal requires fresh 30d minimum, an effective directional pattern, confirmation and score', () => {
+  const base = { fresh: true, minimumValid: true, candleCount: 720, distancePct: 0.3, direction: 'BUY', pattern: 'Bull Pennant', patternConfirmed: true, score: 72 };
+  assert.equal(policy.assessMin30(base).eligible, true);
+  assert.equal(policy.assessMin30({...base, distancePct: 0.51}).eligible, false);
+  assert.equal(policy.assessMin30({...base, patternConfirmed: false}).eligible, false);
+  assert.equal(policy.assessMin30({...base, score: 49}).eligible, false);
+  assert.equal(policy.assessMin30({...base, fresh: false}).eligible, false);
+  assert.equal(policy.assessMin30({...base, pattern: 'Rectangle / Trading Range'}).eligible, false);
+});
+
+test('Min30 shadow sell requires an approved sell pattern and a downside-confirmed signal', () => {
+  const base = { fresh: true, minimumValid: true, candleCount: 744, distancePct: -0.2, direction: 'SELL', pattern: 'Bear Pennant', patternConfirmed: true, score: 55 };
+  assert.equal(policy.assessMin30(base).eligible, true);
+  assert.equal(policy.assessMin30({...base, direction: 'BUY'}).eligible, false);
+});
