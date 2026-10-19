@@ -118,7 +118,7 @@
    const seen=new Set(next.map(x=>x.sym));
    for(const p of allPairs)if(!seen.has(p[0]))next.push({sym:p[0],name:p[1],error:'Falha ao obter candles de 1h'});
    results=next.sort((a,b)=>a.name.localeCompare(b.name));
-   lastRun=Date.now();render();
+   lastRun=Date.now();render();window.dispatchEvent(new CustomEvent('ep-motor7-minimum-updated',{detail:{updatedAt:lastRun}}));
    status(`Atualizado às ${new Date(lastRun).toLocaleTimeString('pt-BR')} • ${next.filter(x=>!x.error).length}/${allPairs.length} ativos • sem gravação de histórico.`);
   }
   busy=false;el('m7Scan').disabled=false;
@@ -133,4 +133,13 @@
  setTimeout(()=>{if(document.visibilityState==='visible')scan()},20000);
  setInterval(()=>{if(document.visibilityState==='visible'&&Date.now()-lastRun>=300000)scan()},30000);
  window.addEventListener('beforeunload',()=>{watching.clear();results=[]});
+ function normSymbol(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+ function getMinimum30(symbol){
+  const key=normSymbol(symbol);
+  const row=results.find(x=>!x.error&&(normSymbol(x.sym)===key||normSymbol(x.name+'USDT')===key));
+  if(!row||!row.windows?.['30d']||Date.now()-(+row.updatedAt||0)>8*60*1000)return null;
+  return row;
+ }
+ window.EPMotor7Minimum={VERSION:'motor7-minimum-cache-v1',get:getMinimum30,getAll:()=>results.filter(x=>!x.error&&x.windows?.['30d']&&Date.now()-(+x.updatedAt||0)<=8*60*1000).slice()};
+
 })();

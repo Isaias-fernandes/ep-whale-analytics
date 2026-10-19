@@ -67,6 +67,7 @@
       <section class="card" id="motor6WatchSection">
         <div class="ep24-head"><div><h2>📡 MONITORAMENTO — MOTOR 6</h2><p class="sub">Motor 6 experimental: inicia observação de padrões elegíveis com score ≥35. Three Rising Valleys é o alerta principal; Pennant e Flag ganham prioridade com volume ≥1,2× e OBV confirmado; Rectangle e Double Bottom aguardam rompimento confirmado. A confirmação exige score técnico ≥50, filtro de qualidade ≥80/100, dados recentes, fonte registrada e ausência de risco. Padrões de venda têm peso reduzido. Os 5 motores oficiais e sinais já abertos permanecem sem alteração.</p></div></div>
         <div id="motor6WatchPanel"><div class="sub">Nenhum sinal selecionado.</div></div>
+        <div class="m7-empty" style="margin-top:10px"><b>🧪 MOTOR 6 — ALTERNATIVA MÍNIMA 30D (SOMBRA)</b><p class="sub">Gera sinais de teste somente até 0,50% da mínima de 30 dias, com padrão direcional prioritário confirmado, volume/OBV ou rompimento e score técnico ≥50. Dados da mínima reutilizados do Motor 7. Histórico local neste navegador, sem gravação ou leitura adicional no Supabase.</p><div id="motor6Min30ShadowPanel">Aguardando mínima de 30 dias e confirmação do padrão.</div></div>
         <div id="motor6HistoryPanel"><p class="sub">Carregando histórico...</p></div>
       </section>
       <section class="card" id="legCycleLabCard">
@@ -264,7 +265,7 @@
     <script src="pro-suite.js?v=crypto-only-20261003"></script>
     <script src="institutional-breakout-confirmation.js?v=crypto-only-20261003"></script>
     <script src="sr-intelligence.js?v=crypto-only-20261003"></script>
-    <script src="motor6-pattern-policy.js?v=20261010-priority-1"></script>
+    <script src="motor6-pattern-policy.js?v=20261019-min30-policy-1"></script>
     <script src="early-leg-motor-v1.js?v=20261010-pattern-priority-1"></script>
     <script src="motor6-signal-monitor.js?v=20261013-dismissed-fix-1"></script>
     <script src="motor6-fundamental-filter.js?v=20261005-quality-gate-1"></script>
@@ -310,6 +311,7 @@
       tabBacktest.onclick = () => setMarket("backtest");
     </script>
   <script src="prospective-comparison.js?v=20261003-1"></script>
-    <script src="motor7-minimum.js?v=20261004-1"></script>
+    <script src="motor7-minimum.js?v=20261019-min30-cache-1"></script>
+    <script src="motor6-min30-shadow.js?v=20261019-min30-shadow-1"></script>
 </body>
 </html>
