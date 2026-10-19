@@ -2,10 +2,10 @@
  * Reutiliza somente a leitura em memória do Motor 7 e os dados já presentes no CryptoApp.
  */
 (function(root, factory) {
-  const api = factory();
+  const api = factory(root);
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.EPMotor6Min30Shadow = api.start(root);
-})(typeof window !== "undefined" ? window : null, function() {
+})(typeof window !== "undefined" ? window : null, function(root) {
   "use strict";
   const KEY = "ep_motor6_min30_shadow_v1";
   const MAX_HISTORY = 500;
@@ -26,7 +26,9 @@
   function assess(signal, minimum, now = Date.now()) {
     const w = minimum?.windows?.["30d"];
     const fresh = !!minimum && !minimum.error && Number.isFinite(+minimum.updatedAt) && now - +minimum.updatedAt <= 8 * 60 * 1000;
-    return window.EPMotor6PatternPolicy.assessMin30({
+    const policy = root?.EPMotor6PatternPolicy;
+    if (!policy?.assessMin30) return { eligible: false, reason: "política do Motor 6 indisponível" };
+    return policy.assessMin30({
       fresh,
       minimumValid: !!w && Number.isFinite(+w.low) && +w.low > 0,
       candleCount: +w?.candles || 0,
