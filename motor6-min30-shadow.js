@@ -64,7 +64,8 @@
         asset: normalize(asset), source: "motor6-min30-shadow",
         direction: signal.dir, pattern: signal.confirmedPattern, score: +signal.score,
         minimum30: +w.low, distancePct: +gate.distancePct, entryPrice: p, lastPrice: p,
-        entryAt: now, status: "OPEN", bestPct: 0, worstPct: 0, resultPct: null,\n        targetTrackingVersion: 1, targetHits: {},
+        entryAt: now, status: "OPEN", bestPct: 0, worstPct: 0, resultPct: null,
+        targetTrackingVersion: 1, targetHits: {},
         gateReason: gate.reason
       };
     }
@@ -78,7 +79,11 @@
         episode.lastPrice = p;
         episode.lastAt = now;
         episode.bestPct = Math.max(+episode.bestPct || 0, r);
-        episode.worstPct = Math.min(+episode.worstPct || 0, r);\n        if (!episode.targetHits || typeof episode.targetHits !== "object") episode.targetHits = {};\n        for (const target of [10, 20]) {\n          if (r >= target && !episode.targetHits[target]) episode.targetHits[target] = { at: now, hours: +((now - +episode.entryAt) / 3600000).toFixed(2) };\n        }
+        episode.worstPct = Math.min(+episode.worstPct || 0, r);
+        if (!episode.targetHits || typeof episode.targetHits !== "object") episode.targetHits = {};
+        for (const target of [10, 20]) {
+          if (r >= target && !episode.targetHits[target]) episode.targetHits[target] = { at: now, hours: +((now - +episode.entryAt) / 3600000).toFixed(2) };
+        }
         if (now - +episode.entryAt >= HORIZON_MS) {
           episode.status = "CLOSED";
           episode.exitAt = now;
@@ -138,7 +143,11 @@
       const closed = episodes.filter(e => e.status === "CLOSED" && e.closeReason === "HORIZON_96H" && Number.isFinite(+e.resultPct));
       const manual = episodes.filter(e => e.status === "CLOSED" && e.closeReason === "MANUAL_LOCAL");
       const wins = closed.filter(e => +e.resultPct > 0).length;
-      const mean = closed.length ? closed.reduce((s,e) => s + +e.resultPct, 0) / closed.length : null;\n      const tracked = closed.filter(e => e.targetTrackingVersion === 1);\n      const hit10 = tracked.filter(e => e.targetHits?.[10]).length;\n      const hit20 = tracked.filter(e => e.targetHits?.[20]).length;\n      const avgHours = target => { const rows = tracked.filter(e => e.targetHits?.[target]); return rows.length ? rows.reduce((sum,e) => sum + (+e.targetHits[target].hours || 0), 0) / rows.length : null; };
+      const mean = closed.length ? closed.reduce((s,e) => s + +e.resultPct, 0) / closed.length : null;
+      const tracked = closed.filter(e => e.targetTrackingVersion === 1);
+      const hit10 = tracked.filter(e => e.targetHits?.[10]).length;
+      const hit20 = tracked.filter(e => e.targetHits?.[20]).length;
+      const avgHours = target => { const rows = tracked.filter(e => e.targetHits?.[target]); return rows.length ? rows.reduce((sum,e) => sum + (+e.targetHits[target].hours || 0), 0) / rows.length : null; };
       const signals = current.filter(e => e.status === "OPEN");
       target.innerHTML = '<div class="m7-summary"><div class="m7-chip"><b>' + signals.length + '</b><br><span class="sub">novos/ativos elegíveis</span></div><div class="m7-chip"><b>' + open.length + '</b><br><span class="sub">em teste local</span></div><div class="m7-chip"><b>' + closed.length + '</b><br><span class="sub">fechados em 96h</span></div><div class="m7-chip"><b>' + manual.length + '</b><br><span class="sub">encerrados manualmente, fora da taxa</span></div><div class="m7-chip"><b>' + (closed.length ? wins + '/' + closed.length + ' (' + (100*wins/closed.length).toFixed(1) + '%)' : '—') + '</b><br><span class="sub">positivos 96h • média ' + (mean == null ? '—' : (mean >= 0 ? '+' : '') + mean.toFixed(2) + '%') + '</span></div><div class="m7-chip"><b>' + (tracked.length ? hit10 + '/' + tracked.length + ' (' + (100*hit10/tracked.length).toFixed(1) + '%)' : '—') + '</b><br><span class="sub">atingiram +10% • média ' + (avgHours(10) == null ? '—' : avgHours(10).toFixed(1) + ' h') + '</span></div><div class="m7-chip"><b>' + (tracked.length ? hit20 + '/' + tracked.length + ' (' + (100*hit20/tracked.length).toFixed(1) + '%)' : '—') + '</b><br><span class="sub">atingiram +20% • média ' + (avgHours(20) == null ? '—' : avgHours(20).toFixed(1) + ' h') + '</span></div></div>' +
         (open.length ? '<div class="m7-grid">' + open.map(e => {
