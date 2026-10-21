@@ -51,8 +51,8 @@ test('Min30 shadow signal requires fresh 30d minimum, an effective directional p
   assert.equal(policy.assessMin30({...base, pattern: 'Rectangle / Trading Range'}).eligible, false);
 });
 
-test('Min30 shadow sell requires an approved sell pattern and a downside-confirmed signal', () => {
+test('Min30 buy-only mode rejects sell patterns', () => {
   const base = { fresh: true, minimumValid: true, candleCount: 744, distancePct: -0.2, direction: 'SELL', pattern: 'Bear Pennant', patternConfirmed: true, score: 55 };
-  assert.equal(policy.assessMin30(base).eligible, true);
+  assert.equal(policy.assessMin30(base).eligible, false);
   assert.equal(policy.assessMin30({...base, direction: 'BUY'}).eligible, false);
 });

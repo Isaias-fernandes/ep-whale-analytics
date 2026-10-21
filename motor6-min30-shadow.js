@@ -24,23 +24,10 @@
   };
 
   function assess(signal, minimum, now = Date.now(), currentPrice = +minimum?.price) {
-    const w = minimum?.windows?.["30d"];
-    const fresh = !!minimum && !minimum.error && Number.isFinite(+minimum.updatedAt) && now - +minimum.updatedAt <= 8 * 60 * 1000;
     const policy = root?.EPMotor6PatternPolicy || (typeof require === "function" ? require("./motor6-pattern-policy.js") : null);
-    if (!policy?.assessMin30) return { eligible: false, reason: "política do Motor 6 indisponível" };
-    const distancePct = Number.isFinite(+currentPrice) && Number.isFinite(+w?.low) && +w.low > 0
-      ? (+currentPrice - +w.low) / +w.low * 100
-      : NaN;
-    return policy.assessMin30({
-      fresh,
-      minimumValid: !!w && Number.isFinite(+w.low) && +w.low > 0,
-      candleCount: +w?.candles || 0,
-      distancePct,
-      direction: signal?.dir,
-      pattern: signal?.confirmedPattern,
-      patternConfirmed: signal?.patternConfirmed === true,
-      score: +signal?.score || 0
-    });
+    if (!policy?.entryGate) return { eligible: false, confirmed: false, reason: "política indisponível" };
+    const gate = policy.entryGate(signal, minimum, currentPrice, now);
+    return { ...gate, eligible: gate.eligible && gate.confirmed };
   }
 
   function start(win) {
@@ -106,8 +93,8 @@
         let signal;
         try { signal = calc(x); } catch { continue; }
         if (!signal) continue;
-        const gate = assess(signal, minimum, now);
-        if (!gate.eligible) continue;
+        const gate = assess(signal, minimum, now, priceOf(x));
+        if (!gate.eligible || !gate.confirmed) continue;
         const existing = episodes.find(e => normalize(e.asset) === asset && e.status === "OPEN");
         if (!existing) {
           const last = [...episodes].reverse().find(e => normalize(e.asset) === asset);

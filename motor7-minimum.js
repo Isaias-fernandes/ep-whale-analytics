@@ -8,6 +8,7 @@
  const api='https://data-api.binance.vision/api/v3/klines';
  const fmt=(n,d=6)=>Number.isFinite(+n)?(+n).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
  const pct=(v,d=2)=>Number.isFinite(+v)?(+v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—';
+ let candleCache=new Map();
  let results=[],watching=new Set(),busy=false,lastRun=0,scanId=0;
  root.innerHTML=`
   <div class="m7-controls">
@@ -48,7 +49,7 @@
   const selected=c.filter(x=>x.t+3600000>cut&&x.t<=now);
   if(!selected.length)return null;
   const oldest=selected[0].t;
-  if(hrs>=720&&oldest>cut+2*3600000)return null;
+  if(hrs>=720&&(oldest>cut||selected.at(-1).t<now-3600000||selected.some((x,i)=>i&&x.t-selected[i-1].t!==3600000)))return null;
   return {low:Math.min(...selected.map(x=>x.l)),candles:selected.length};
  }
  async function requestCandles(symbol){
@@ -56,7 +57,7 @@
   if(!r.ok)throw Error('HTTP '+r.status);
   const raw=await r.json();
   if(!Array.isArray(raw)||!raw.length)throw Error('Sem candles');
-  return raw.map(a=>({t:+a[0],o:+a[1],h:+a[2],l:+a[3],c:+a[4],v:+a[5]})).filter(x=>[x.t,x.o,x.h,x.l,x.c,x.v].every(Number.isFinite));
+  return raw.map(a=>({t:+a[0],o:+a[1],h:+a[2],l:+a[3],c:+a[4],v:+a[5],closeTime:+a[6],quoteVolume:+a[7],takerBuyQuote:+a[10]})).filter(x=>[x.t,x.o,x.h,x.l,x.c,x.v].every(Number.isFinite));
  }
  async function worker(items,limit,fn){
   let i=0;
@@ -110,6 +111,7 @@
   const next=[];
   await worker(allPairs,5,async pair=>{
    const c=await requestCandles(pair[0]);
+   candleCache.set(pair[0],{candles:c,updatedAt:Date.now()});
    const x=buildResult(pair,c,map);
    next.push(x);
   });
@@ -140,6 +142,6 @@
   if(!row||!row.windows?.['30d']||Date.now()-(+row.updatedAt||0)>8*60*1000)return null;
   return row;
  }
- window.EPMotor7Minimum={VERSION:'motor7-minimum-cache-v1',get:getMinimum30,getAll:()=>results.filter(x=>!x.error&&x.windows?.['30d']&&Date.now()-(+x.updatedAt||0)<=8*60*1000).slice()};
+ window.EPMotor7Minimum={VERSION:'motor7-minimum-cache-v2',getCandles:symbol=>{const r=candleCache.get(normSymbol(symbol));return r&&Date.now()-r.updatedAt<=8*60*1000?r.candles.slice():null},get:getMinimum30,getAll:()=>results.filter(x=>!x.error&&x.windows?.['30d']&&Date.now()-(+x.updatedAt||0)<=8*60*1000).slice()};
 
 })();

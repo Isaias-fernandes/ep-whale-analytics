@@ -77,7 +77,7 @@
   const MIN30_DISTANCE_MAX_PCT = 0.5;
   const MIN30_SCORE_MIN = 50;
   const MIN30_PATTERNS = Object.freeze({
-    BUY: Object.freeze(["Three Rising Valleys", "Bull Pennant", "Bull Flag", "Double Bottom", "Falling Wedge"]),
+    BUY: Object.freeze(["Three Rising Valleys", "Bull Pennant", "Bull Flag", "Double Bottom", "Falling Wedge", "Rectangle Accumulation"]),
     SELL: Object.freeze(["Bear Pennant", "Bear Flag", "Rectangle Distribution", "Double Top", "Rising Wedge"])
   });
 
@@ -90,10 +90,10 @@
     if (!(Number(input.candleCount) >= 700)) {
       return { eligible: false, reason: "histórico menor que 700 candles H1" };
     }
-    if (Math.abs(distance) > MIN30_DISTANCE_MAX_PCT) {
+    if ((distance < 0 || distance > MIN30_DISTANCE_MAX_PCT)) {
       return { eligible: false, reason: "ativo fora da faixa de 0,50% da mínima de 30 dias" };
     }
-    if (!direction) return { eligible: false, reason: "direção não identificada" };
+    if (direction !== "BUY") return { eligible: false, reason: "direção não identificada" };
     if (!MIN30_PATTERNS[direction].includes(String(input.pattern || ""))) {
       return { eligible: false, reason: "padrão não está entre os prioritários da direção" };
     }
@@ -106,5 +106,24 @@
     return { eligible: true, reason: "mínima 30D e padrão direcional confirmados", direction, pattern: String(input.pattern), distancePct: distance };
   }
 
-  return { VERSION: "lab-pattern-policy-v1", VOLUME_MIN, SELL_WEIGHT_FACTOR, RULES, assess, MIN30_DISTANCE_MAX_PCT, MIN30_SCORE_MIN, MIN30_PATTERNS, assessMin30 };
+  function entryGate(signal, minimum, price, now = Date.now(), armed = null) {
+    const fail = reason => ({ eligible: false, confirmed: false, reason });
+    const w = minimum?.windows?.["30d"];
+    const age = now - Number(minimum?.updatedAt);
+    if (!w || !Number.isFinite(age) || age < 0 || age > 480000 || minimum.error || !(w.low > 0) || !(w.candles >= 720)) return fail("mínima 30d indisponível ou antiga");
+    if (!(price > 0) || !Number.isFinite(price) || signal?.dir !== "BUY" || signal.timeframe !== "1h" || !signal.closedCandles) return fail("exige compra e candles H1 fechados");
+    const distance = (price / w.low - 1) * 100;
+    const continuing = armed?.policyVersion === "m6-entry-v2" && armed.entryDir === "BUY" && Number.isFinite(armed.armedAt) && now >= armed.armedAt && now - armed.armedAt <= 21600000 && price >= armed.minimum30 && price <= armed.entryPrice * 1.03;
+    if (armed && !continuing) return fail("alerta expirado, invalidado ou esticado");
+    if (distance < 0 || (!continuing && distance > 0.5)) return fail("fora da mínima 30d ou janela de confirmação");
+    const name = signal.confirmedPattern || signal.pattern;
+    if (!MIN30_PATTERNS.BUY.includes(name) || !(signal.score >= 35) || !signal.compression || !signal.patternObvConfirmed) return fail("aguardando estrutura, compressão e OBV");
+    const f = signal.buyerFlow;
+    // Missing aggression data never silently confirms a signal.
+    const flowOk = !!f && Number.isFinite(f.ratio) && f.ratio >= 0.55 && f.ratio <= 1;
+    const confirmed = signal.patternConfirmed === true && signal.score >= 50 && signal.patternVolumeRatio >= VOLUME_MIN && flowOk;
+    return { eligible: true, confirmed, distancePct: distance, minimum30: w.low, reason: confirmed ? "mínima armada + estrutura, volume, OBV e agressão compradora" : "alerta antecipado; aguardando confirmação conjunta", policyVersion: "m6-entry-v2" };
+  }
+
+  return { VERSION: "lab-pattern-policy-v1", VOLUME_MIN, SELL_WEIGHT_FACTOR, RULES, assess, entryGate, MIN30_DISTANCE_MAX_PCT, MIN30_SCORE_MIN, MIN30_PATTERNS, assessMin30 };
 });
