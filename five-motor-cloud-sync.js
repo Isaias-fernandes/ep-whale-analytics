@@ -158,8 +158,16 @@
     if (!Array.isArray(ops)) return;
     let changed = false;
     const queued = loadClosed();
+    let locallyDismissed = new Set();
+    try {
+      const values = JSON.parse(localStorage.getItem("ep_live_operations_dismissed_v1") || "[]");
+      if (Array.isArray(values)) locallyDismissed = new Set(values);
+    } catch {}
     for (const r of rows) {
       if (!r?.asset || r.market !== "crypto") continue;
+      const normalizedAsset = String(r.asset).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const canonicalAsset = normalizedAsset.endsWith("USDT") ? normalizedAsset : normalizedAsset + "USDT";
+      if (locallyDismissed.has("crypto:" + canonicalAsset)) continue;
       const ix = ops.findIndex(o => o.market === "crypto" && o.asset === r.asset);
       if (r.status === "CLOSED") {
         const closedAt = asMillis(r.closed_at || r.updated_at);
@@ -171,7 +179,8 @@
       }
       if (r.status !== "OPEN") continue;
       const pendingClose = queued.find(x => x.asset === r.asset);
-      if (pendingClose && asMillis(pendingClose.closedAt) >= asMillis(r.updated_at)) continue;
+      // O fechamento local prevalece sobre atualizações posteriores da mesma entrada remota.
+      if (pendingClose && asMillis(pendingClose.closedAt) >= asMillis(r.entry_at)) continue;
       const remote = rowToOperation(r);
       if (ix < 0) {
         ops.push(remote);
