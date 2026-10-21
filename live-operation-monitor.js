@@ -194,6 +194,8 @@
     let motors = +d.motorAgree || 0;
     let existing = ops.find((o) => o.market === m && normalizeAsset(o.asset) === a);
     if (existing) {
+      dismissed = dismissed.filter(key => key !== (m + ":" + a));
+      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(dismissed)); } catch {}
       existing.readOnlySeed = false;
       save();
       rebuild();
@@ -218,6 +220,8 @@
     }
     if (ops.filter(o => !o.readOnlySeed).length >= 10)
       return alert("Limite de 10 ativos em acompanhamento. Encerre um acompanhamento para adicionar outro.");
+    dismissed = dismissed.filter(key => key !== (m + ":" + a));
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(dismissed)); } catch {}
     let g = gate(m, x),
       p = price(x);
     if (!Number.isFinite(p))
@@ -258,7 +262,11 @@
     let i = ops.findIndex((o) => o.id === id);
     if (i < 0) return;
     let o = ops[i];
-    if(o.readOnlySeed){dismissed.push(o.market+":"+o.asset);try{localStorage.setItem(DISMISSED_KEY,JSON.stringify(Array.from(new Set(dismissed))))}catch{}}
+    // Evita que o endpoint compartilhado restaure o ativo já encerrado neste aparelho,
+    // inclusive quando a sincronização privada estiver indisponível.
+    const dismissedKey = o.market + ":" + o.asset;
+    dismissed = Array.from(new Set([...dismissed, dismissedKey]));
+    try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(dismissed)); } catch {}
     // Resposta visual imediata: retira o cartão antes de qualquer cálculo auxiliar.
     let cardEl = [...document.querySelectorAll("[data-op]")].find((node) => node.dataset.op === id);
     if (cardEl) cardEl.remove();
