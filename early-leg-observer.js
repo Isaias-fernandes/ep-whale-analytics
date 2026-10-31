@@ -42,7 +42,7 @@ function analyze(x){
  const accepted=dir==='BUY'?c.slice(-2).every(z=>z.c>resistance):c.slice(-2).every(z=>z.c<support);
  const rejection=dir==='BUY'?(last.h-last.c)/(last.h-last.l||1):(last.c-last.l)/(last.h-last.l||1);
  const stretched=Math.abs(r6)>=Math.max(3,atrPct*4);
- const priorState=state[x.sym]?.phase;
+ const priorState=state[x.sym]?.dir===dir?state[x.sym]?.phase:null;
  let phase='COMPRESSÃO';
  if(compression<=.78&&range20<Math.max(5,atrPct*8))phase='COMPRESSÃO';
  if(phase==='COMPRESSÃO'&&((dir==='BUY'&&higherLows>=3)||(dir==='SELL'&&lowerHighs>=3))&&volRatio<1.25)phase='ABSORÇÃO';
@@ -54,9 +54,9 @@ function analyze(x){
  if(accepted&&pressure>=65&&Math.abs(r3)>=Math.max(.6,atrPct*1.1))phase='ACELERAÇÃO';
  if(stretched&&(Math.abs(r6)>=4||num(x.rsi)>=78||num(x.rsi)<=22))phase='ESTICAMENTO';
  if((priorState==='ESTICAMENTO'||stretched)&&((volRatio<1&&rejection>.45)||(dir==='BUY'&&m.hAccel<0)||(dir==='SELL'&&m.hAccel>0)))phase='EXAUSTÃO';
- const old=state[x.sym];const peak=old?.peakPrice||p,trough=old?.troughPrice||p;
+ const old=state[x.sym];const peak=old?.dir===dir?(old?.peakPrice||p):p,trough=old?.dir===dir?(old?.troughPrice||p):p;
  const newPeak=Math.max(peak,p),newTrough=Math.min(trough,p);
- const retr=dir==='BUY'&&newPeak>level?pct(newPeak,p):dir==='SELL'&&newTrough<level?pct(p,newTrough):0;
+ const retr=dir==='BUY'&&newPeak>level?-pct(newPeak,p):dir==='SELL'&&newTrough<level?pct(newTrough,p):0;
  const backNear=dir==='BUY'?Math.abs(pct(level,p))<=Math.max(.8,atrPct*1.4):Math.abs(pct(p,level))<=Math.max(.8,atrPct*1.4);
  if(['ESTICAMENTO','EXAUSTÃO','RETRAÇÃO'].includes(priorState)&&retr>Math.max(.5,atrPct))phase='RETRAÇÃO';
  if(['RETRAÇÃO','EXAUSTÃO'].includes(priorState)&&backNear)phase='RETESTE';
@@ -65,7 +65,7 @@ function analyze(x){
 }
 function scan(){
  const map=window.CryptoApp?.getData?.();if(!map?.size){render([]);return}
- const rows=[];map.forEach(x=>{const r=analyze(x);if(!r)return;const old=state[r.sym];if(!old||old.phase!==r.phase){events.push({ts:r.ts,sym:r.sym,asset:r.asset,from:old?.phase||null,to:r.phase,price:r.price,score:r.score,dir:r.dir,dist:r.dist,attacks:r.attacks,volRatio:r.volRatio,flow:r.flow,oi:r.oi,book:r.book});}state[r.sym]={...r,peakPrice:Math.max(old?.peakPrice||r.price,r.peakPrice),troughPrice:Math.min(old?.troughPrice||r.price,r.troughPrice)};rows.push(state[r.sym])});
+ const rows=[];map.forEach(x=>{const r=analyze(x);if(!r)return;const old=state[r.sym];const startsNew=!old||old.dir!==r.dir||Date.now()-(old.episodeStartedAt||Date.now())>=7*86400000||(old.phase==='RETESTE'&&['COMPRESSÃO','ABSORÇÃO','PRESSÃO','PRÉ-IGNIÇÃO'].includes(r.phase));r.episodeStartedAt=startsNew?r.ts:(old.episodeStartedAt||r.ts);if(startsNew){r.peakPrice=r.price;r.troughPrice=r.price;}if(!old||old.phase!==r.phase||old.dir!==r.dir){events.push({ts:r.ts,sym:r.sym,asset:r.asset,from:old?.phase||null,to:r.phase,price:r.price,score:r.score,dir:r.dir,dist:r.dist,attacks:r.attacks,volRatio:r.volRatio,flow:r.flow,oi:r.oi,book:r.book});}state[r.sym]={...r};rows.push(state[r.sym])});
  save();render(rows);window.dispatchEvent(new CustomEvent('ep-early-leg-updated',{detail:{rows}}));
 }
 const f=(v,d=2)=>Number.isFinite(+v)?(+v).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
