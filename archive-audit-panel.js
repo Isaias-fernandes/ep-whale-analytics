@@ -114,11 +114,11 @@ function init(){
   const columns=Array.from(new Set(records.flatMap(row=>Object.keys(row))));
   const cell=value=>{
    let text=value==null?'':typeof value==='object'?JSON.stringify(value):String(value);
-   if(text&&['=','+','-','@','\\t','\\r'].includes(text[0]))text="'"+text;
+   if(text&&[61,43,45,64,9,13].includes(text.charCodeAt(0)))text="'"+text;
    return '"'+text.replace(/"/g,'""')+'"';
   };
-  const csv=[columns.map(cell).join(';'),...records.map(row=>columns.map(key=>cell(row[key])).join(';'))].join('\\r\\n');
-  const blob=new Blob(['\\uFEFF',csv],{type:'text/csv;charset=utf-8'});
+  const csv=[columns.map(cell).join(';'),...records.map(row=>columns.map(key=>cell(row[key])).join(';'))].join(String.fromCharCode(13,10));
+  const blob=new Blob([String.fromCharCode(0xFEFF),csv],{type:'text/csv;charset=utf-8'});
   download(blob,'ep-auditoria-'+loaded.table+'-todos-ativos-'+loaded.before.slice(0,10)+'.csv');
  };
 }
