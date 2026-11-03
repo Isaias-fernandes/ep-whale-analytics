@@ -50,7 +50,7 @@ async function rpc(server,body,signal){
 let controller=null,loaded=null,selection=null;
 function init(){
  const host=document.createElement('section');host.className='card';host.id='epSevenDayAudit';
- host.innerHTML='<h2>AUDITORIA CENTRAL — HISTÓRICO DE 7 DIAS</h2><p class="sub">Consulta os registros do EP Analítico e do arquivo separado. Preserva indicadores, preços e resultados. Observações e eventos não equivalem a operações independentes.</p><div class="bt-controls"><label>Registro<select id="epAuditTable">'+Object.entries(TABLES).map(([key,[label]])=>'<option value="'+key+'">'+label+'</option>').join('')+'</select></label><label>Ativo (opcional)<input id="epAuditAsset" placeholder="BTC, XRP, XLM..." maxlength="20"></label><button id="epAuditLoad" type="button">Consultar 7 dias</button><button id="epAuditCancel" type="button" disabled>Cancelar consulta</button><button id="epAuditDownload" type="button" disabled>Baixar registros completos</button></div><p id="epAuditStatus" class="sub" role="status" aria-live="polite">Consulta sob demanda. Nenhum registro será alterado.</p><div id="epAuditSummary"></div><div style="overflow:auto;max-height:550px"><table class="price-track"><thead><tr><th>Data</th><th>Ativo</th><th>Direção</th><th>Evento / fase</th><th>Preço</th><th>Motores</th><th>Score</th><th>Resultado</th><th>Máx. favorável</th><th>Máx. adversa</th></tr></thead><tbody id="epAuditRows"></tbody></table></div><p class="sub">A tabela exibe os 50 registros mais recentes; o download contém todos os registros consultados. A janela pode ter lacunas ou ter começado há menos de sete dias. Resultados registrados não incluem necessariamente taxas e execução real.</p>';
+ host.innerHTML='<h2>AUDITORIA CENTRAL — HISTÓRICO DE 7 DIAS</h2><p class="sub">Consulta os registros do EP Analítico e do arquivo separado. Preserva indicadores, preços e resultados. Observações e eventos não equivalem a operações independentes.</p><div class="bt-controls"><label>Registro<select id="epAuditTable">'+Object.entries(TABLES).map(([key,[label]])=>'<option value="'+key+'">'+label+'</option>').join('')+'</select></label><label>Ativo (opcional)<input id="epAuditAsset" placeholder="BTC, XRP, XLM..." maxlength="20"></label><button id="epAuditLoad" type="button">Consultar 7 dias</button><button id="epAuditCancel" type="button" disabled>Cancelar consulta</button><button id="epAuditDownloadCsv" type="button" disabled>Baixar CSV — todos os ativos</button><button id="epAuditDownloadJson" type="button" disabled>Baixar JSON — todos os ativos</button></div><p class="sub">Deixe Ativo vazio para consultar todos. O campo Ativo filtra somente a tabela; os downloads incluem todos os ativos do registro consultado.</p><p id="epAuditStatus" class="sub" role="status" aria-live="polite">Consulta sob demanda. Nenhum registro será alterado.</p><div id="epAuditSummary"></div><div style="overflow:auto;max-height:550px"><table class="price-track"><thead><tr><th>Data</th><th>Ativo</th><th>Direção</th><th>Evento / fase</th><th>Preço</th><th>Motores</th><th>Score</th><th>Resultado</th><th>Máx. favorável</th><th>Máx. adversa</th></tr></thead><tbody id="epAuditRows"></tbody></table></div><p class="sub">A tabela exibe os 50 registros mais recentes; o download contém todos os registros consultados. A janela pode ter lacunas ou ter começado há menos de sete dias. Resultados registrados não incluem necessariamente taxas e execução real.</p>';
  const anchor=document.querySelector('#signalStats')?.closest('section.card');if(anchor)anchor.after(host);else document.querySelector('main')?.append(host);
  const el=id=>host.querySelector('#'+id);
  function show(){
@@ -65,7 +65,7 @@ function init(){
   if(controller)return;
   if(!globalThis.DecompressionStream||!globalThis.crypto?.subtle){el('epAuditStatus').textContent='Este navegador não suporta a recuperação dos arquivos. Atualize o navegador.';return}
   controller=new AbortController();const signal=controller.signal;
-  el('epAuditLoad').disabled=true;el('epAuditTable').disabled=true;el('epAuditCancel').disabled=false;el('epAuditDownload').disabled=true;loaded=null;
+  el('epAuditLoad').disabled=true;el('epAuditTable').disabled=true;el('epAuditCancel').disabled=false;el('epAuditDownloadCsv').disabled=true;el('epAuditDownloadJson').disabled=true;loaded=null;
   const table=el('epAuditTable').value,before=new Date().toISOString(),since=new Date(Date.parse(before)-7*86400000).toISOString();
   const records=new Map();let fromLive=0,fromArchive=0,last=0;
   try{
@@ -94,16 +94,32 @@ function init(){
     afterAt=tail.archived_at;afterHash=tail.batch_sha256;
    }
    loaded={table,since,before,lines:Array.from(records.values())};selection=table;
-   show();el('epAuditDownload').disabled=false;
+   show();el('epAuditDownloadCsv').disabled=false;el('epAuditDownloadJson').disabled=false;
    el('epAuditStatus').textContent='Consulta concluída: '+fromLive+' registros da origem + '+fromArchive+' exclusivos do arquivo. Cópias comprimidas conferidas; duplicações removidas. Leitura progressiva: não é uma fotografia simultânea das duas bases.';
   }catch(error){el('epAuditStatus').textContent=error.name==='AbortError'?'Consulta cancelada. Nenhum dado foi alterado.':'Consulta incompleta: '+error.message+'. Não use os dados parciais como auditoria completa.';el('epAuditSummary').textContent='';el('epAuditRows').innerHTML=''}
   finally{controller=null;el('epAuditLoad').disabled=false;el('epAuditTable').disabled=false;el('epAuditCancel').disabled=true}
  };
- el('epAuditTable').onchange=()=>{if(selection!==el('epAuditTable').value){loaded=null;el('epAuditDownload').disabled=true;el('epAuditRows').innerHTML='';el('epAuditSummary').textContent='';el('epAuditStatus').textContent='Clique em Consultar 7 dias para carregar este registro.'}};
- el('epAuditDownload').onclick=()=>{
+ el('epAuditTable').onchange=()=>{if(selection!==el('epAuditTable').value){loaded=null;el('epAuditDownloadCsv').disabled=true;el('epAuditDownloadJson').disabled=true;el('epAuditRows').innerHTML='';el('epAuditSummary').textContent='';el('epAuditStatus').textContent='Clique em Consultar 7 dias para carregar este registro.'}};
+ function download(blob,filename){
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.style.display='none';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+ }
+ el('epAuditDownloadJson').onclick=()=>{
   if(!loaded)return;
-  const blob=new Blob(['{"schema_version":1,"table":'+JSON.stringify(loaded.table)+',"since":'+JSON.stringify(loaded.since)+',"before":'+JSON.stringify(loaded.before)+',"records":[',loaded.lines.join(',\n'),']}'],{type:'application/json'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ep-auditoria-'+loaded.table+'-'+loaded.before.slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+  const blob=new Blob(['{"schema_version":1,"table":'+JSON.stringify(loaded.table)+',"since":'+JSON.stringify(loaded.since)+',"before":'+JSON.stringify(loaded.before)+',"records":[',loaded.lines.join(',\n'),']}'],{type:'application/json;charset=utf-8'});
+  download(blob,'ep-auditoria-'+loaded.table+'-todos-ativos-'+loaded.before.slice(0,10)+'.json');
+ };
+ el('epAuditDownloadCsv').onclick=()=>{
+  if(!loaded)return;
+  const records=loaded.lines.map(line=>JSON.parse(line));
+  const columns=Array.from(new Set(records.flatMap(row=>Object.keys(row))));
+  const cell=value=>{
+   let text=value==null?'':typeof value==='object'?JSON.stringify(value):String(value);
+   if(/^[=+@\\-\\t\\r]/.test(text))text="'"+text;
+   return '"'+text.replace(/"/g,'""')+'"';
+  };
+  const csv=[columns.map(cell).join(';'),...records.map(row=>columns.map(key=>cell(row[key])).join(';'))].join('\\r\\n');
+  const blob=new Blob(['\\uFEFF',csv],{type:'text/csv;charset=utf-8'});
+  download(blob,'ep-auditoria-'+loaded.table+'-todos-ativos-'+loaded.before.slice(0,10)+'.csv');
  };
 }
 globalThis.EPArchiveAudit={decodeBatch,summarize};
