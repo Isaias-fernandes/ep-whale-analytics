@@ -114,7 +114,7 @@ function init(){
   const columns=Array.from(new Set(records.flatMap(row=>Object.keys(row))));
   const cell=value=>{
    let text=value==null?'':typeof value==='object'?JSON.stringify(value):String(value);
-   if(/^[=+@\\-\\t\\r]/.test(text))text="'"+text;
+   if(text&&['=','+','-','@','\\t','\\r'].includes(text[0]))text="'"+text;
    return '"'+text.replace(/"/g,'""')+'"';
   };
   const csv=[columns.map(cell).join(';'),...records.map(row=>columns.map(key=>cell(row[key])).join(';'))].join('\\r\\n');
