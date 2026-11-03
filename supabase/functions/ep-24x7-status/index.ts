@@ -37,7 +37,11 @@ function serveProtectedRead(handler:(req:Request)=>Promise<Response>){
   });
 }
 
-serveProtectedRead(async(req)=>{if(req.method!=='GET'&&req.method!=='OPTIONS')return new Response(JSON.stringify({ok:false,error:'read_only'}),{status:405,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'https://isaias-fernandes.github.io','Access-Control-Allow-Methods':'GET,OPTIONS'}});const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type','Content-Type':'application/json'};if(req.method==='OPTIONS')return new Response('ok',{headers:cors});const url=Deno.env.get('SUPABASE_URL')!,key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,H={'apikey':key,'Authorization':`Bearer ${key}`};try{if(new URL(req.url).searchParams.get('view')==='rep-10d'){
+serveProtectedRead(async(req)=>{if(req.method!=='GET'&&req.method!=='OPTIONS')return new Response(JSON.stringify({ok:false,error:'read_only'}),{status:405,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'https://isaias-fernandes.github.io','Access-Control-Allow-Methods':'GET,OPTIONS'}});const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type','Content-Type':'application/json'};if(req.method==='OPTIONS')return new Response('ok',{headers:cors});const url=Deno.env.get('SUPABASE_URL')!,key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,H={'apikey':key,'Authorization':`Bearer ${key}`};try{if(new URL(req.url).searchParams.get('view')==='mm-validation'){
+ const r=await fetch(`${url}/rest/v1/rpc/ep_mm_validation_report_v1`,{method:'POST',headers:{...H,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(10000)});
+ if(!r.ok)throw Error('MM Validation HTTP '+r.status);
+ return new Response(JSON.stringify(await r.json()),{headers:cors});
+}if(new URL(req.url).searchParams.get('view')==='rep-10d'){
  const r=await fetch(`${url}/rest/v1/rpc/ep_rep10d_report`,{method:'POST',headers:{...H,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(10000)});
  if(!r.ok)throw Error('REP 10D HTTP '+r.status);
  return new Response(JSON.stringify(await r.json()),{headers:cors});

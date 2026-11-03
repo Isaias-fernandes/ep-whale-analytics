@@ -4,12 +4,16 @@ on:
     paths:
       - 'supabase/functions/**'
       - 'ep-read-cache.js'
+      - 'multimotor-test-core.js'
+      - 'multimotor-test-core.test.cjs'
       - 'scripts/check-traffic-protection.mjs'
       - '.github/workflows/traffic-protection.yml'
   pull_request:
     paths:
       - 'supabase/functions/**'
       - 'ep-read-cache.js'
+      - 'multimotor-test-core.js'
+      - 'multimotor-test-core.test.cjs'
       - 'scripts/check-traffic-protection.mjs'
       - '.github/workflows/traffic-protection.yml'
 permissions:
@@ -23,3 +27,5 @@ jobs:
         with:
           node-version: '24'
       - run: node scripts/check-traffic-protection.mjs
+      - name: Validate parallel experiment and episode tracking
+        run: node --test multimotor-test-core.test.cjs early-leg-episode-core.test.cjs

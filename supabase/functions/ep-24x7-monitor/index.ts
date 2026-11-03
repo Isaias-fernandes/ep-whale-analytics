@@ -1,3 +1,4 @@
+import './multimotor-test-core.js';
 import './early-leg-episode-core.js';
 const PAIRS = [
   ['BTCUSDT','BTC'],['ETHUSDT','ETH'],['SOLUSDT','SOL'],['BNBUSDT','BNB'],['XRPUSDT','XRP'],
@@ -274,6 +275,14 @@ async function load(sym:string,asset:string){
     fs += Math.abs(x.funding)<=.03?20:Math.abs(x.funding)<=.06?12:Math.abs(x.funding)<=.10?4:-15;
     futuresScore=clamp(Math.round(fs),0,75);
   }
+  const oiPriceAt=(time:number)=>{const bar=c.filter((z:any)=>z.t+300000<=time).at(-1);return bar&&time-(bar.t+300000)<=300000?bar.c:null;};
+  const oiStartMs=Number(h?.[0]?.timestamp),oiEndMs=Number(h?.at?.(-1)?.timestamp);
+  const oiStartPrice=oiPriceAt(oiStartMs),oiEndPrice=oiPriceAt(oiEndMs);
+  x.oiWindowPriceChangePct=oiStartPrice&&oiEndPrice&&oiEndMs>oiStartMs?pct(oiStartPrice,oiEndPrice):null;
+  x.derivativesQuality={
+    oi:Array.isArray(h)&&h.length>=2&&Number.isFinite(oi0)&&oi0>0&&Number.isFinite(oi1)&&oi1>0&&Number.isFinite(x.oiWindowPriceChangePct),
+    funding:p?.lastFundingRate!=null&&String(p.lastFundingRate).trim()!==''&&Number.isFinite(Number(p.lastFundingRate))
+  };
   x.futuresExperimental={
     version:'pre-leg-futures-v1',available:futuresAvailable,
     oiChangePct:futuresAvailable?futuresOiChangePct:null,
@@ -1126,6 +1135,8 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
   const errors:any[]=[];
   const pendingEarlyLegUpdates:any[]=[];
   const episodeSamples:any[]=[];
+  const multimotorSamples:any[]=[];
+  let multimotorSampleErrors=0;
   const pendingPreSignalRows:any[]=[];
   const pendingEarlyLegEvents:any[]=[];
   const pendingEarlyLegStateRows:any[]=[];
@@ -1155,6 +1166,8 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
           // CAMADA OBSERVADORA: não altera score, motores, tier, OPEN ou CLOSED.
           // Falhas aqui não derrubam o processamento oficial do ativo.
           const observedAt=new Date(now).toISOString();
+          try{multimotorSamples.push((globalThis as any).EPMultimotorTest.sample(x,observedAt));}
+          catch(e){multimotorSampleErrors++;console.error('MM_VALIDATION_SAMPLE',sym,String(e));}
           const earlyEpisodeId=await runEarlyLegV2(url,H,x,observedAt,pendingEarlyLegUpdates,pendingEarlyLegEvents,pendingEarlyLegStateRows,earlyStateMap,pendingEventsByAsset).catch(e=>{
             console.error('EARLY_LEG_V2_BACKEND',sym,String(e));
             return null;
@@ -1379,6 +1392,13 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
     if(!response.ok)throw Error('HTTP '+response.status+' '+(await response.text()).slice(0,250));
   }catch(e){episodeTrackingOk=false;console.error('REP_10D',String(e));}}
 
+  let multimotorTestOk=multimotorSampleErrors===0;
+  if(multimotorSamples.length){try{
+    const response=await fetch(`${url}/rest/v1/rpc/ep_collect_mm_validation_v1`,{method:'POST',headers:H,
+      body:JSON.stringify({p_samples:multimotorSamples}),signal:AbortSignal.timeout(20000)});
+    if(!response.ok)throw Error('HTTP '+response.status+' '+(await response.text()).slice(0,250));
+  }catch(e){multimotorTestOk=false;console.error('MM_VALIDATION_V1',String(e));}}
+
   if(runId){
     await fetch(`${url}/rest/v1/ep_backend_runs?id=eq.${runId}`,{
       method:'PATCH',
@@ -1388,7 +1408,7 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
         status:err?'partial':'ok',
         symbols_ok:ok,
         symbols_error:err,
-        details:{errors,total:PAIRS.length,episodeTrackingOk}
+        details:{errors,total:PAIRS.length,episodeTrackingOk,multimotorTestOk}
       })
     });
   }
@@ -1401,6 +1421,7 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
       total:PAIRS.length,
       errors:errors.slice(0,5),
       episodeTrackingOk,
+      multimotorTestOk,
       at:new Date().toISOString()
     }),
     {headers:{'content-type':'application/json'}}
