@@ -5,6 +5,9 @@ on:
     paths:
       - 'app.js'
       - 'quality-panel.mjs'
+      - 'motor6-mtf*.mjs'
+      - 'motor6-mtf.css'
+      - 'index.html'
       - 'tests/**'
       - '.github/workflows/quality-tests.yml'
 permissions:
@@ -20,3 +23,5 @@ jobs:
       - run: node --test tests/*.test.mjs
       - run: node --check app.js
       - run: node --check quality-panel.mjs
+
+      - run: node --check motor6-mtf-panel.mjs

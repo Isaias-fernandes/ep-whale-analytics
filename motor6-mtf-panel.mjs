@@ -1,0 +1,44 @@
+import {PERIODS,normalizeSymbol,readCandles,createReadCache} from './motor6-mtf-core.mjs';
+export function start(win=window,doc=document){
+ const API='https://ep-whale-api.isaiasf59.workers.dev',views=new Map(),names={'1h':'H1 · estrutura','30m':'M30 · derivado','15m':'M15 · detalhe','5m':'M5 · acompanhamento'},outcomes={PENDING:'Em andamento',TARGET:'Alvo antes do stop',STOP:'Stop antes do alvo',AMBIGUOUS:'Ambíguo',TIMEOUT:'Prazo encerrado',INCOMPLETE:'Incompleto'};
+ let storage=null;try{storage=win.sessionStorage;}catch{}const read=createReadCache(win.fetch.bind(win),storage);let selected='BTCUSDT',result=null,loading=false,revision=0;
+ const el=(tag,text,cls)=>{const e=doc.createElement(tag);if(text!=null)e.textContent=String(text);if(cls)e.className=cls;return e;};
+ const fmt=(n,d=2)=>n==null||!Number.isFinite(n)?'—':n.toLocaleString('pt-BR',{maximumFractionDigits:d});
+ const date=t=>Number.isFinite(t)?new Date(t).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
+ function symbols(){const set=new Set([selected]);for(const [key,x] of win.CryptoApp?.getData?.()?.entries?.()||[])set.add(normalizeSymbol(x?.sym||x?.key||key));for(const e of win.EPMotor6Watch?.get?.()||[])set.add(normalizeSymbol(e.asset));return [...set].filter(s=>/^[A-Z0-9]{2,20}USDT$/.test(s)).sort();}
+ function mount(parent,id,title){if(!parent||views.has(id))return;const root=el('div',null,'m6-mtf');root.id=id;root.append(el('h3',title),el('p','Leitura informativa do histórico no TiDB. Não altera score, gatilhos ou confirmações do Motor 6.','sub'));
+  const controls=el('div',null,'m6-mtf-controls'),label=el('label','Ativo '),select=el('select'),button=el('button','Atualizar leitura');label.append(select);controls.append(label,button);button.type='button';button.title='Respeita o cache de 15 minutos; não força uma nova coleta.';select.addEventListener('change',()=>{selected=select.value;result=null;refresh();});button.addEventListener('click',refresh);root.append(controls);const status=el('p','Aguardando leitura…','sub');status.setAttribute('role','status');root.append(status);const body=el('div');root.append(body);parent.append(root);views.set(id,{root,select,status,body,button});options();if(result)render();}
+ function options(){const values=symbols();for(const v of views.values()){const old=[...v.select.options].map(o=>o.value).join(',');if(old!==values.join(',')){v.select.replaceChildren(...values.map(s=>{const o=el('option',s.replace(/USDT$/,'/USDT'));o.value=s;return o;}));}v.select.value=selected;}}
+ function ensure(){mount(doc.getElementById('earlyLegObserverSection'),'motor6MtfReading','LEITURA MTF — MOTOR 6');mount(doc.getElementById('motor6WatchSection'),'motor6MtfMonitoring','LEITURA MTF — MONITORAMENTO DO MOTOR 6');options();}
+ function appendTable(body){const wrap=el('div',null,'m6-mtf-scroll'),table=el('table'),head=el('thead'),tr=el('tr');for(const h of ['Janela','Leitura / saúde','Último fechamento · Brasília','Preço','Volume / média 20','OBV / fluxo comprador'])tr.append(el('th',h));head.append(tr);table.append(head);const tbody=el('tbody');
+  for(const interval of Object.keys(PERIODS)){const raw=result.frames[interval],r=readCandles(raw,interval),row=el('tr');row.append(el('th',names[interval]));let text;if(raw?.__failed)text='Consulta indisponível';else if(r.status==='empty')text=interval==='5m'?'Sem acompanhamento disponível':'Sem candles armazenados';else if(r.status==='unavailable')text='Leitura indisponível';else text=(r.status==='stale'?'Dados atrasados · ':'')+r.reading+` · ${r.used}/${r.count} candles consecutivos`+(r.gaps?' · há lacunas':'');
+   row.append(el('td',text),el('td',date(r.closedAt)),el('td',fmt(r.price,8)),el('td',r.volRatio==null?'—':fmt(r.volRatio)+'×'),el('td',(r.obv||'Sem OBV suficiente')+' / '+(r.buyerPct==null?'fluxo indisponível':fmt(r.buyerPct,1)+'%')));tbody.append(row);
+  }table.append(tbody);wrap.append(table);body.append(wrap,el('p','M5 existe apenas nas janelas selecionadas de sinais de qualidade. M30 usa pares M15 completos. Não há interpolação de lacunas nem probabilidade calculada por esta leitura.','sub'));}
+ function monitor(body){const e=(win.EPMotor6Watch?.get?.()||[]).find(e=>normalizeSymbol(e.asset)===selected);body.append(el('h4','Episódio do Motor 6 atual'));
+  if(!e){body.append(el('p','Nenhum episódio do Motor 6 em acompanhamento para este ativo.','sub'));return;}
+  const entry=Number(e.entryPrice),last=Number(e.lastPrice),change=entry>0&&last>0?(last/entry-1)*100*(e.entryDir==='SELL'?-1:1):null;
+  body.append(el('p',`${e.signalStatus||'Observação'} · ${e.lastPattern||e.entryPattern||'Padrão não informado'}`),el('p',`Referência ${fmt(entry,8)} · último preço registrado ${fmt(last,8)} · variação ${fmt(change)}% · início ${date(Number(e.entryAt))}`),el('p','Valores do monitor existente. Não representam ordem executada; a leitura MTF não confirma nem encerra esse episódio.','sub'));
+ }
+ function quality(body){body.append(el('h4','Experimento de qualidade do Laboratório · H1'));
+  if(result.quality?.__failed){body.append(el('p','Consulta do experimento indisponível.','sub'));return;}
+  if(result.quality?.__stale)body.append(el('p','Dados de qualidade em cache antigo: consulta atual indisponível.','sub'));
+  if(result.quality?.next)body.append(el('p','Histórico parcial: esta leitura usa até 200 registros do ativo. Consulte o painel de qualidade para a auditoria completa.','sub'));
+  const matches=(result.quality?.records||[]).filter(r=>r.birth?.strategy!=='BASELINE').sort((a,b)=>b.birth.signalTime-a.birth.signalTime);const item=matches[0];
+  if(!item){body.append(el('p','Sem sinal de qualidade registrado para este ativo. Isso não invalida os episódios do Motor 6.','sub'));return;}
+  const b=item.birth,e=item.evaluation,patterns={TRV_CONFIRMED:'Three Rising Valleys confirmado',BULL_FLAG_BREAKOUT:'Bull Flag rompido',MIN30_FLOW:'Mínima 30D + fluxo'};body.append(el('p',`${patterns[b.strategy]||b.strategy} · experimento em observação${b.retroactive?' · registro retroativo':''} · detectado ${date(Date.parse(b.detectedAt))}`));
+  if(!e){body.append(el('p','Avaliação ainda não disponível.','sub'));return;}
+  body.append(el('p',`Entrada de referência: ${fmt(e.entry,8)} · variação até o último H1: ${fmt(e.finalReturnPct)}% · cobertura: ${e.coverage==='COMPLETE'?'sem lacunas registradas':'incompleta'} · último H1 fechado: ${date(e.lastCandleTime+3600000)}`));
+  for(const [bars,stop,label] of [[96,3,'96 horas · stop −3%'],[720,10,'30 dias · stop −10%']]){const line=el('p',label+': ');for(const target of [3,5,10,20,50]){const cell=Object.values(e.cells||{}).find(c=>c.target===target&&c.bars===bars&&c.stop===stop);line.append(el('span',`+${target}%: ${cell?(outcomes[cell.outcome]||cell.outcome):'sem avaliação'}`,'m6-mtf-target'));}body.append(line);}
+  body.append(el('p','Cenários de avaliação do Laboratório, distintos do episódio do Motor 6. Alvos são objetivos medidos, não promessa de retorno. Resultados acima continuam baseados em H1.','sub'));
+ }
+ function render(){if(!result)return;for(const v of views.values()){v.body.replaceChildren();appendTable(v.body);if(v.root.id==='motor6MtfMonitoring')monitor(v.body);quality(v.body);const failed=Object.values(result.frames).some(x=>x.__failed)||result.quality?.__failed;v.status.textContent=`${selected.replace(/USDT$/,'/USDT')} · leitura exibida ${date(result.at)} · cache de 15 minutos${failed?' · uma ou mais fontes indisponíveis':''}. Veja o horário dos candles para avaliar atualização.`;}}
+ async function refresh(){ensure();if(loading)return;loading=true;const rev=++revision,symbol=selected;for(const v of views.values()){v.button.disabled=true;v.status.textContent='Consultando dados já armazenados…';}try{
+  const entries=await Promise.all(Object.keys(PERIODS).map(async interval=>{try{return[interval,await read(`${API}/analytics/candles?symbol=${symbol}&interval=${interval}&limit=96`)];}catch{return[interval,{__failed:true}];}}));let q;try{q=await read(`${API}/analytics/quality?symbol=${symbol}&limit=200`);}catch{q={__failed:true};}
+  if(rev===revision&&symbol===selected){result={frames:Object.fromEntries(entries),quality:q,at:Date.now()};render();}
+ }finally{loading=false;for(const v of views.values())v.button.disabled=false;if(symbol!==selected)refresh();}}
+ for(const event of ['ep-early-leg-updated','ep-motor6-watch-ready','ep-motor6-watch-changed','ep-motor6-watch-updated'])win.addEventListener(event,()=>{ensure();if(result)render();});
+ const observer=new win.MutationObserver(()=>ensure());observer.observe(doc.body,{childList:true,subtree:true});
+ ensure();refresh();const timer=win.setInterval(()=>{if(!doc.hidden)refresh();},900000);win.addEventListener('pagehide',()=>{observer.disconnect();win.clearInterval(timer);},{once:true});
+ return {refresh};
+}
+if(typeof document!=='undefined')start();
