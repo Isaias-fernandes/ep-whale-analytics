@@ -16,7 +16,7 @@ create table ep_market_history.control (
  enabled boolean not null default true,
  symbols jsonb not null
 );
-insert into ep_market_history.control(symbols) values ('["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "TRXUSDT", "UNIUSDT", "AAVEUSDT", "SUIUSDT", "NEARUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "XLMUSDT", "HBARUSDT", "PEPEUSDT", "ETCUSDT", "ATOMUSDT", "TIAUSDT", "XTZUSDT", "LDOUSDT", "SEIUSDT", "FILUSDT", "INJUSDT", "RUNEUSDT", "ALGOUSDT", "FETUSDT", "GALAUSDT", "SANDUSDT", "MANAUSDT", "CRVUSDT", "DYDXUSDT", "JUPUSDT", "WIFUSDT", "BONKUSDT", "SHIBUSDT", "TONUSDT", "STXUSDT", "IMXUSDT", "RENDERUSDT", "THETAUSDT", "VETUSDT", "ZECUSDT"]'::jsonb);
+insert into ep_market_history.control(symbols) values ('["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "TRXUSDT", "UNIUSDT", "AAVEUSDT", "SUIUSDT", "NEARUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "XLMUSDT", "HBARUSDT", "PEPEUSDT", "ETCUSDT", "ATOMUSDT", "TIAUSDT", "XTZUSDT", "LDOUSDT", "SEIUSDT", "FILUSDT", "INJUSDT", "RUNEUSDT", "ALGOUSDT", "FETUSDT", "GALAUSDT", "SANDUSDT", "MANAUSDT", "CRVUSDT", "DYDXUSDT", "JUPUSDT", "WIFUSDT", "BONKUSDT", "SHIBUSDT", "GRTUSDT", "STXUSDT", "IMXUSDT", "RENDERUSDT", "THETAUSDT", "VETUSDT", "ZECUSDT"]'::jsonb);
 alter table ep_market_history.samples enable row level security;
 alter table ep_market_history.control enable row level security;
 revoke all on all tables in schema ep_market_history from public, anon, authenticated;
