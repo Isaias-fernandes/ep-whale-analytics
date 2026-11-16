@@ -1386,11 +1386,27 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
   }
 
   let episodeTrackingOk=true;
-  if(episodeSamples.length){try{
-    const response=await fetch(`${url}/rest/v1/rpc/ep_collect_rep_10d`,{method:'POST',headers:H,
-      body:JSON.stringify({p_samples:episodeSamples}),signal:AbortSignal.timeout(20000)});
-    if(!response.ok)throw Error('HTTP '+response.status+' '+(await response.text()).slice(0,250));
-  }catch(e){episodeTrackingOk=false;console.error('REP_10D',String(e));}}
+  if(episodeSamples.length){
+    const btcSample=episodeSamples.find(s=>s?.current?.asset==='BTCUSDT');
+    const repBatches=[];
+    for(let i=0;i<episodeSamples.length;i+=10){
+      const batch=episodeSamples.slice(i,i+10);
+      if(btcSample&&!batch.some(s=>s?.current?.asset==='BTCUSDT'))batch.push(btcSample);
+      repBatches.push(batch);
+    }
+    const repErrors=[];
+    for(let i=0;i<repBatches.length;i++){
+      try{
+        const response=await fetch(`${url}/rest/v1/rpc/ep_collect_rep_10d`,{method:'POST',headers:H,
+          body:JSON.stringify({p_samples:repBatches[i]}),signal:AbortSignal.timeout(20000)});
+        if(!response.ok)throw Error('HTTP '+response.status+' '+(await response.text()).slice(0,250));
+      }catch(e){
+        repErrors.push(i+1);
+        console.error('REP_10D_BATCH',i+1,'of',repBatches.length,String(e));
+      }
+    }
+    episodeTrackingOk=repErrors.length===0;
+  }
 
   let multimotorTestOk=multimotorSampleErrors===0;
   if(multimotorSamples.length){try{
