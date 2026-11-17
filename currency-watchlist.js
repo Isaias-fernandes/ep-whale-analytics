@@ -1,20 +1,31 @@
 (()=>{'use strict';
 const KEY='ep_currency_watchlist_v1';
 let defaults=[];
+const isTon=value=>['TON','TONUSDT'].includes(String(value??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''));
 const normalize=value=>{
  const raw=String(value||'').trim().toUpperCase().replace(/\s+/g,'');
  if(!raw)return '';
  const pair=raw.endsWith('USDT')?raw:raw+'USDT';
- return /^[A-Z0-9]{2,20}USDT$/.test(pair)?pair:'';
+ return !isTon(pair)&&/^[A-Z0-9]{2,20}USDT$/.test(pair)?pair:'';
 };
 const clean=list=>[...new Set((Array.isArray(list)?list:[]).map(x=>normalize(Array.isArray(x)?x[0]:x)).filter(Boolean))].map(s=>[s,s.slice(0,-4)]);
 function read(){
- try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(Array.isArray(saved)&&saved.length)return clean(saved);}catch{}
+ try{
+  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+  if(Array.isArray(saved)&&saved.length){
+   const normalized=clean(saved);
+   if(normalized.length){
+    if(JSON.stringify(saved)!==JSON.stringify(normalized))localStorage.setItem(KEY,JSON.stringify(normalized));
+    return normalized;
+   }
+  }
+ }catch{}
  return defaults.length?defaults.map(x=>x.slice()):[];
 }
 function save(pairs){
  if(!Array.isArray(pairs)||!pairs.length)return false;
  const normalized=clean(pairs);
+ if(!normalized.length)return false;
  try{localStorage.setItem(KEY,JSON.stringify(normalized));}catch{return false;}
  window.dispatchEvent(new CustomEvent('ep-watchlist-changed',{detail:{pairs:normalized.map(x=>x.slice())}}));
  return true;
@@ -40,15 +51,17 @@ function mount(fallback){
  }
  panel.querySelector('#epWatchlistToggle').onclick=e=>{const opening=editor.hidden;editor.hidden=!opening;e.currentTarget.setAttribute('aria-expanded',String(opening));e.currentTarget.textContent=opening?'Fechar gerenciamento':'Gerenciar lista';};
  panel.querySelector('#epWatchlistAdd').onclick=()=>{
+  if(isTon(input.value)){setStatus('TON foi retirada do EP e não pode ser adicionada novamente.');return;}
   const pairValue=normalize(input.value);if(!pairValue){setStatus('Informe um ticker válido, como BTC ou GRT.');return;}
   const current=read();if(current.some(x=>x[0]===pairValue)){setStatus(pairValue.slice(0,-4)+' já está na lista.');return;}
   if(save([...current,[pairValue,pairValue.slice(0,-4)]])){input.value='';render();setStatus(pairValue.slice(0,-4)+' adicionada e salva.');}
  };
  input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();panel.querySelector('#epWatchlistAdd').click();}};
  panel.querySelector('#epWatchlistReplace').onclick=()=>{
-  const values=bulk.value.split(/[\s,;]+/).map(x=>normalize(x)).filter(Boolean);
-  const next=clean(values);if(!next.length){setStatus('Digite ao menos um ticker válido.');return;}
-  if(save(next)){bulk.value='';render();setStatus('Lista substituída e salva neste navegador.');}
+  const rawValues=bulk.value.split(/[\s,;]+/),removedTon=rawValues.some(isTon);
+  const values=rawValues.map(x=>normalize(x)).filter(Boolean),next=clean(values);
+  if(!next.length){setStatus(removedTon?'TON foi retirada; informe outras moedas para salvar a lista.':'Digite ao menos um ticker válido.');return;}
+  if(save(next)){bulk.value='';render();setStatus(removedTon?'Lista salva; TON foi removida.':'Lista substituída e salva neste navegador.');}
  };
  panel.querySelector('.ep-watchlist-reset').onclick=()=>{
   try{localStorage.removeItem(KEY);}catch{}
