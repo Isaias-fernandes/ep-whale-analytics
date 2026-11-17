@@ -11,7 +11,7 @@ const controls=el('div',null,'controls'),asset=el('select'),strategy=el('select'
 function option(select,value,text){const o=el('option',text);o.value=value;select.append(o);}
 option(asset,'','Todos os ativos');option(strategy,'','Todos os gatilhos');for(const [key,name] of Object.entries(names))option(strategy,key,name);
 for(const [key,text] of [['30d_stop10','30 dias · stop −10%'],['30d_stop3','30 dias · stop −3%'],['96h_stop3','96 horas · stop −3%']])option(objective,key,text);
-for(const [key,text] of [['BASE','Regra-base'],['BOLLINGER','Teste: dentro de Bollinger'],['NO_PRELEG_24H','Teste: sem pré-pernada']])option(arm,key,text);
+for(const [key,text] of [['BASE','Regra-base'],['BOLLINGER','Teste: dentro de Bollinger'],['NO_PRELEG_24H','Teste: sem pré-pernada'],['BTC_24H_POSITIVE','Teste: BTC positivo em 24h'],['ALT_OUTPERFORM_BTC_24H','Teste: ativo supera BTC em 24h']])option(arm,key,text);
 for(const [select,text] of [[asset,'Ativo'],[strategy,'Gatilho'],[objective,'Avaliação'],[arm,'Comparação']]){const label=el('label',text);label.append(select);controls.append(label);}root.append(controls);
 const performance=el('div');root.append(performance);
 const settings=el('details'),settingsTitle=el('summary','Custos por plataforma e alvos líquidos estimados');settings.append(settingsTitle);
@@ -33,6 +33,8 @@ function renderCards(){if(!data)return;cards.replaceChildren();const records=dat
     card.append(el('p',`${labels[e.status]||e.status} · SOMBRA${b.retroactive?' · recuperado após atraso':''} · ${new Date(b.closedAt).toLocaleString('pt-BR')}`));
     card.append(el('p',Object.entries(b.checklist||{}).map(([k,v])=>`${({pattern:'Padrão',breakout:'Rompimento',volume:'Volume',obv:'OBV',notStretched:'Dentro de Bollinger',buyerFlow:'Fluxo comprador'})[k]} ${v==null?'indisponível':v?'✔':'✖'}`).join(' · ')));
     card.append(el('p',`Entrada simulada: ${number(e.entry,8)} USDT · Volume: ${number(b.features.volumeRatio)}x · Agressão: ${number(b.features.aggression==null?null:b.features.aggression*100)}% · Mínima 30D: ${number(b.features.minimum30,8)} USDT`));
+    const m=b.context?.btcContext||{},signed=v=>v==null?'indisponível':`${Number(v)>=0?'+':''}${number(v)}%`,regime=m.btcAboveEma200==null?'indisponível':m.btcAboveEma200?'acima da EMA200':'abaixo da EMA200';
+    card.append(el('p',`Contexto no fechamento: BTC 24h ${signed(m.btcReturn24hPct)} / 7d ${signed(m.btcReturn7dPct)} (${regime}) · ativo 24h ${signed(m.assetReturn24hPct)} · diferença para BTC 24h ${signed(m.excessReturn24hPct)} / 7d ${signed(m.excessReturn7dPct)}.`));
     const prefix=objective.value;card.append(el('p',[3,5,10,20,50].map(t=>`+${t}%: ${({PENDING:'aguardando',TARGET:'alvo primeiro',STOP:'stop primeiro',TIMEOUT:'prazo encerrado',AMBIGUOUS:'ordem indeterminada',INCOMPLETE:'incompleto'})[e.cells[`${prefix}_target${t}`]?.outcome]||'—'}`).join(' · ')));
     card.append(el('p',`Melhor variação observada: ${number(e.mfe)}% · Pior: ${number(e.mae)}% · Cobertura: ${e.coverage==='COMPLETE'?'sem lacuna observada':'incompleta'}. Excursão não é lucro realizado.`));
     const c=costs();for(const [key,x] of Object.entries(e.exits||{})){
@@ -47,6 +49,7 @@ function render(){if(!data)return;performance.replaceChildren();const table=el('
     for(const text of [names[row.strategy],`+${target}%`,`${cell.n} (${cell.hits} acertos)`,cell.n?`${number(cell.pct)}%`:'Aguardando amostra',cell.baselinePct==null?'Sem controles maduros':`${number(cell.baselinePct)}%`,cell.lift==null?'—':`${number(cell.lift)}x`,`${cell.ambiguous} / ${cell.partial}`])tr.append(el('td',text));body.append(tr);
   }}table.append(body);const wrap=el('div',null,'table-wrap');wrap.append(table);performance.append(wrap);performance.append(el('p','Tabela: universo completo de ativos. O filtro de ativo seleciona somente os cartões. Taxas incluem apenas janelas maduras, sem lacunas e com ordem conhecida; a referência usa o mesmo ativo, mês UTC e faixa de horário. Não há teste de significância aprovado.'));
   if(arm.value==='NO_PRELEG_24H')performance.append(el('p','O filtro exige histórico completo de pré-pernada. Ausência de dados permanece indisponível e nunca significa “sem alerta”.'));
+  if(['BTC_24H_POSITIVE','ALT_OUTPERFORM_BTC_24H'].includes(arm.value))performance.append(el('p','Comparação experimental em sombra: os sinais continuam sendo registrados sem bloqueio por BTC. A referência pareada usa o mesmo ativo, mês UTC, faixa de 6 horas e regime do filtro. “Superar BTC” é retorno do ativo menos retorno do BTC no mesmo intervalo.'));
   renderCards();
 }
 for(const input of [asset,strategy,objective,arm])input.addEventListener('change',render);
