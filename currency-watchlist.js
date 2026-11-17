@@ -2,7 +2,7 @@
 const KEY='ep_currency_watchlist_v1';
 let defaults=[];
 const normalize=value=>{
- const raw=String(value||'').trim().toUpperCase().replace(/\\s+/g,'');
+ const raw=String(value||'').trim().toUpperCase().replace(/\s+/g,'');
  if(!raw)return '';
  const pair=raw.endsWith('USDT')?raw:raw+'USDT';
  return /^[A-Z0-9]{2,20}USDT$/.test(pair)?pair:'';
@@ -46,7 +46,7 @@ function mount(fallback){
  };
  input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();panel.querySelector('#epWatchlistAdd').click();}};
  panel.querySelector('#epWatchlistReplace').onclick=()=>{
-  const values=bulk.value.split(/[\\s,;]+/).map(x=>normalize(x)).filter(Boolean);
+  const values=bulk.value.split(/[\s,;]+/).map(x=>normalize(x)).filter(Boolean);
   const next=clean(values);if(!next.length){setStatus('Digite ao menos um ticker válido.');return;}
   if(save(next)){bulk.value='';setStatus('Lista substituída e salva neste navegador.');}
  };
