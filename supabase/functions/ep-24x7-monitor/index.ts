@@ -1148,16 +1148,31 @@ async function flushRestRows(url:string,H:any,path:string,rows:any[],prefer:stri
 }
 
 Deno.serve(async(req)=>{
-const internalKey=Deno.env.get('EP_INTERNAL_KEY')||'';
-if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)return new Response(JSON.stringify({ok:false,error:'unauthorized'}),{status:401,headers:{'content-type':'application/json'}});
   const url=Deno.env.get('SUPABASE_URL')!;
   const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
   const H={
     'apikey':key,
     'Authorization':`Bearer ${key}`,
     'Content-Type':'application/json'
   };
+  if(req.method!=='POST')return new Response(JSON.stringify({ok:false,error:'unauthorized'}),{status:401,headers:{'content-type':'application/json'}});
+  let authorized=false;
+  try{
+    const check=await fetch(`${url}/rest/v1/rpc/ep_validate_24x7_key`,{
+      method:'POST',headers:H,
+      body:JSON.stringify({candidate:req.headers.get('x-ep-internal-key')||''}),
+      signal:AbortSignal.timeout(5000)
+    });
+    if(!check.ok){
+      console.error('INTERNAL_KEY_CHECK_FAILED',check.status);
+      return new Response(JSON.stringify({ok:false,error:'auth_validation_unavailable'}),{status:503,headers:{'content-type':'application/json'}});
+    }
+    authorized=await check.json()===true;
+  }catch(e){
+    console.error('INTERNAL_KEY_CHECK_ERROR',String(e));
+    return new Response(JSON.stringify({ok:false,error:'auth_validation_unavailable'}),{status:503,headers:{'content-type':'application/json'}});
+  }
+  if(!authorized)return new Response(JSON.stringify({ok:false,error:'unauthorized'}),{status:401,headers:{'content-type':'application/json'}});
 
   // Fail fast if PostgREST cannot read its schema cache, avoiding a burst of doomed observer writes.
   let preflight:Response;
@@ -1460,12 +1475,25 @@ if(req.method!=='POST'||req.headers.get('x-ep-internal-key')!==internalKey)retur
   }
 
   let multimotorTestOk=multimotorSampleErrors===0;
-  if(multimotorSamples.length){try{
-    const response=await fetch(`${url}/rest/v1/rpc/ep_collect_mm_validation_v1`,{method:'POST',headers:H,
-      body:JSON.stringify({p_samples:multimotorSamples}),signal:AbortSignal.timeout(20000)});
-    if(!response.ok)throw Error('HTTP '+response.status+' '+(await response.text()).slice(0,250));
-  }catch(e){multimotorTestOk=false;console.error('MM_VALIDATION_V1',String(e));}}
-
+  if(multimotorSamples.length){
+    const mmErrors=[];
+    const batchSize=25;
+    for(let i=0;i<multimotorSamples.length;i+=batchSize){
+      const batch=multimotorSamples.slice(i,i+batchSize);
+      try{
+        const response=await fetch(`${url}/rest/v1/rpc/ep_collect_mm_validation_v1`,{
+          method:'POST',headers:H,
+          body:JSON.stringify({p_samples:batch}),
+          signal:AbortSignal.timeout(20000)
+        });
+        if(!response.ok)throw Error('HTTP '+response.status+' '+(await response.text()).slice(0,250));
+      }catch(e){
+        mmErrors.push(i/batchSize+1);
+        console.error('MM_VALIDATION_V1_BATCH',i/batchSize+1,'of',Math.ceil(multimotorSamples.length/batchSize),String(e));
+      }
+    }
+    multimotorTestOk=multimotorTestOk&&mmErrors.length===0;
+  }
   if(runId){
     await fetch(`${url}/rest/v1/ep_backend_runs?id=eq.${runId}`,{
       method:'PATCH',
