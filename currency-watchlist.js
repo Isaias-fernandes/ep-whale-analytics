@@ -17,7 +17,7 @@ function save(pairs){
  const normalized=clean(pairs);
  try{localStorage.setItem(KEY,JSON.stringify(normalized));}catch{return false;}
  window.dispatchEvent(new CustomEvent('ep-watchlist-changed',{detail:{pairs:normalized.map(x=>x.slice())}}));
- render();return true;
+ return true;
 }
 function mount(fallback){
  defaults=clean(fallback);
@@ -34,7 +34,7 @@ function mount(fallback){
   for(const [symbol,label] of pairs){
    const chip=document.createElement('span');chip.className='ep-watchlist-chip';chip.append(document.createTextNode(label));
    const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Remover '+label);remove.title='Remover '+label;
-   remove.onclick=()=>{const next=read().filter(x=>x[0]!==symbol);if(!save(next))setStatus('A lista precisa ter ao menos uma moeda.');else setStatus(label+' removida e salva.');};
+   remove.onclick=()=>{const next=read().filter(x=>x[0]!==symbol);if(!save(next))setStatus('A lista precisa ter ao menos uma moeda.');else{render();setStatus(label+' removida e salva.');}};
    chip.append(remove);tags.append(chip);
   }
  }
@@ -42,13 +42,13 @@ function mount(fallback){
  panel.querySelector('#epWatchlistAdd').onclick=()=>{
   const pairValue=normalize(input.value);if(!pairValue){setStatus('Informe um ticker válido, como BTC ou GRT.');return;}
   const current=read();if(current.some(x=>x[0]===pairValue)){setStatus(pairValue.slice(0,-4)+' já está na lista.');return;}
-  if(save([...current,[pairValue,pairValue.slice(0,-4)]])){input.value='';setStatus(pairValue.slice(0,-4)+' adicionada e salva.');}
+  if(save([...current,[pairValue,pairValue.slice(0,-4)]])){input.value='';render();setStatus(pairValue.slice(0,-4)+' adicionada e salva.');}
  };
  input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();panel.querySelector('#epWatchlistAdd').click();}};
  panel.querySelector('#epWatchlistReplace').onclick=()=>{
   const values=bulk.value.split(/[\s,;]+/).map(x=>normalize(x)).filter(Boolean);
   const next=clean(values);if(!next.length){setStatus('Digite ao menos um ticker válido.');return;}
-  if(save(next)){bulk.value='';setStatus('Lista substituída e salva neste navegador.');}
+  if(save(next)){bulk.value='';render();setStatus('Lista substituída e salva neste navegador.');}
  };
  panel.querySelector('.ep-watchlist-reset').onclick=()=>{
   try{localStorage.removeItem(KEY);}catch{}
