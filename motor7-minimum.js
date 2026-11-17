@@ -1,5 +1,5 @@
-/* Motor 7: observação transitória das mínimas e reversão inicial.
- * Não altera os 5 motores nem o Motor 6. Não usa localStorage, Supabase ou histórico.
+/* Motor 7: observação das mínimas e reversão inicial.
+ * A lista escolhida fica salva neste navegador; não altera os 5 motores nem o Motor 6.
  */
 (()=>{'use strict';
  const root=document.getElementById('motor7MinimumPanel');
@@ -14,7 +14,9 @@
   <div class="m7-controls">
    <label>Distância máxima da mínima<select id="m7Tolerance"><option value="0.25">0,25%</option><option value="0.5" selected>0,50%</option><option value="1">1,00%</option></select></label>
    <button id="m7Scan" type="button" style="width:auto">Atualizar mínimas</button>
-   <span id="m7Status" class="m7-status" role="status" aria-live="polite">Aguardando atualização.</span>
+   <label>Moeda para monitorar<select id="m7PairSelect"></select></label>
+   <button id="m7AddWatch" type="button" style="width:auto">Adicionar moeda</button>
+   <span id="m7Status" class="m7-status" role="status" aria-live="polite">A lista escolhida será salva neste navegador.</span>
   </div>
   <div id="m7Summary" class="m7-summary"></div>
   <h3>Central de interpretação</h3><div id="m7Signals"></div>
@@ -24,6 +26,19 @@
  const status=(s)=>{if(el('m7Status'))el('m7Status').textContent=s};
  const dataMap=()=>window.CryptoApp?.getData?.();
  const pairs=()=>window.CryptoApp?.getPairs?.()||[];
+ const WATCH_KEY='ep-motor7-watchlist-v1';
+ function readWatchList(){
+  try{const saved=JSON.parse(localStorage.getItem(WATCH_KEY)||'[]');
+   if(!Array.isArray(saved))return new Set();
+   const allowed=new Set(pairs().map(p=>p[0]));
+   return new Set(saved.map(x=>String(x).toUpperCase()).filter(x=>allowed.has(x)));
+  }catch{return new Set()}
+ }
+ function saveWatchList(){
+  try{localStorage.setItem(WATCH_KEY,JSON.stringify([...watching]));return true}
+  catch(e){status('Não foi possível salvar a lista neste navegador. Verifique o armazenamento do navegador.');return false}
+ }
+ watching=readWatchList();
  function candlePatterns(c){
   if(c.length<3)return[];
   const a=c.at(-2),b=c.at(-1),body=Math.abs(b.c-b.o),range=Math.max(b.h-b.l,1e-12),lower=Math.min(b.o,b.c)-b.l,upper=b.h-Math.max(b.o,b.c),out=[];
@@ -97,11 +112,16 @@
  function render(){
   const near=results.filter(x=>!x.error&&x.active?.length).sort((a,b)=>Math.min(...a.active.map(k=>a.windows[k].distance))-Math.min(...b.active.map(k=>b.windows[k].distance)));
   const inWatch=[...watching].map(sym=>results.find(x=>x.sym===sym)).filter(Boolean);
+  const pending=[...watching].filter(sym=>!results.some(x=>x.sym===sym));
+  const pairSelect=el('m7PairSelect'),selectedPair=pairSelect.value;
+  pairSelect.innerHTML=pairs().map(([sym,name])=>`<option value="${sym}">${name}/USDT</option>`).join('');
+  if([...pairSelect.options].some(o=>o.value===selectedPair))pairSelect.value=selectedPair;
   const total=results.filter(x=>!x.error).length;
   el('m7Summary').innerHTML=`<div class="m7-chip"><b>${total}/${pairs().length}</b><br><span class="sub">ativos calculados</span></div><div class="m7-chip"><b>${near.length}</b><br><span class="sub">perto de uma mínima</span></div><div class="m7-chip"><b>${results.filter(x=>x.level==='confirmed'&&x.active?.length).length}</b><br><span class="sub">com candle comprador</span></div><div class="m7-chip"><b>${results.filter(x=>x.error).length}</b><br><span class="sub">sem dados atuais</span></div>`;
   el('m7Signals').innerHTML=near.length?`<div class="m7-grid">${near.map(x=>card(x,watching.has(x.sym))).join('')}</div>`:'<div class="m7-empty">Nenhum ativo está dentro da distância selecionada de uma mínima. Isso não significa que não possa haver uma queda em andamento.</div>';
-  el('m7WatchCount').textContent='('+inWatch.length+' ativos; somente enquanto esta página estiver aberta)';
-  el('m7Watching').innerHTML=inWatch.length?`<div class="m7-grid">${inWatch.map(x=>card(x,true)).join('')}</div>`:'<div class="m7-empty">Nenhum ativo selecionado. Use “Monitorar” em um alerta de mínima.</div>';
+  el('m7WatchCount').textContent='('+watching.size+' ativos; lista salva neste navegador)';
+  const pendingHtml=pending.length?`<div class="m7-empty">Aguardando leitura de: ${pending.map(sym=>pairs().find(p=>p[0]===sym)?.[1]||sym).join(', ')}.</div>`:'';
+  el('m7Watching').innerHTML=inWatch.length||pending.length?`${inWatch.length?`<div class="m7-grid">${inWatch.map(x=>card(x,true)).join('')}</div>`:''}${pendingHtml}`:'<div class="m7-empty">Nenhum ativo selecionado. Escolha uma moeda acima ou use “Monitorar” em um alerta de mínima.</div>';
  }
  async function scan(){
   if(busy)return;
@@ -127,14 +147,18 @@
  }
  root.addEventListener('click',e=>{
   const b=e.target.closest('[data-m7-watch]');
-  if(b){const sym=b.dataset.m7Watch;if(watching.has(sym))watching.delete(sym);else watching.add(sym);render()}
+  if(b){const sym=b.dataset.m7Watch;if(watching.has(sym))watching.delete(sym);else watching.add(sym);saveWatchList();render()}
+  if(e.target.id==='m7AddWatch'){
+   const sym=el('m7PairSelect').value;
+   if(sym){watching.add(sym);saveWatchList();render();status(`${pairs().find(p=>p[0]===sym)?.[1]||sym} adicionada. A lista fica salva ao sair do EP.`)}
+  }
   if(e.target.id==='m7Scan')scan();
  });
  el('m7Tolerance').addEventListener('change',()=>{if(results.length)render()});
  // The page refreshes from the existing live market feed every 30s; this windowed scan runs every 5m.
  setTimeout(()=>{if(document.visibilityState==='visible')scan()},20000);
  setInterval(()=>{if(document.visibilityState==='visible'&&Date.now()-lastRun>=300000)scan()},30000);
- window.addEventListener('beforeunload',()=>{watching.clear();results=[]});
+ window.addEventListener('beforeunload',()=>{results=[]});
  function normSymbol(value){return String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
  function getMinimum30(symbol){
   const key=normSymbol(symbol);
