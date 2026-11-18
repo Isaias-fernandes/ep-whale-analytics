@@ -54,8 +54,7 @@ select
   count(*) as days,
   sum(n) as signals,
   round(avg(win_pct)::numeric, 1) as mean_daily_win_pct,
-  round(avg(avg_return)::numeric, 3) as mean_daily_return_pct,
-  round((100.0 * sum(n) filter (where true))::numeric, 1) as signal_weight_check
+  round(avg(avg_return)::numeric, 3) as mean_daily_return_pct
 from daily
 group by sentiment_band, direction
 order by
