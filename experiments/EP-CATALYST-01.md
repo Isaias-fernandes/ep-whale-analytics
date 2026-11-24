@@ -1,7 +1,7 @@
 # Experimento: catalisadores fundamentais e reação das criptomoedas
 
 **ID:** EP-CATALYST-01  
-**Estado:** especificação para implementação em modo sombra  
+**Estado:** protótipo em modo sombra na branch `experiment/fundamental-catalyst-study`; ainda não publicado em produção  
 **Hipótese:** notícias ou eventos fundamentais positivos podem anteceder retornos positivos; parte do avanço das altcoins pode ser explicada pela alta do BTC, enquanto o retorno excedente representa movimento específico do ativo. A hipótese é exploratória e não presume causalidade.
 
 ## Perguntas do experimento
@@ -40,7 +40,7 @@ Medir para cada ativo nos horizontes **24h, 72h e 7 dias**:
 - retorno excedente vs. cesta;
 - máxima favorável (MFE), máxima adversa (MAE), drawdown até o horizonte;
 - variação de volume e volatilidade frente aos 7 dias anteriores;
-- número de motores compradores/vendedores, score e tier no instante do evento, 24h antes e em cada horizonte;
+- na primeira versão, o painel não grava snapshots dos motores; a comparação com sinais do EP exige integração futura com o histórico de sinais;
 - dados disponíveis, lacunas de candles e qualidade/cobertura.
 
 Retorno excedente simples é descritivo, não é beta-ajustado nem prova que a notícia causou a variação.
@@ -67,7 +67,8 @@ Uma hipótese ganha apoio preliminar apenas se houver amostra suficiente, cobert
 
 ## Limites do primeiro ciclo
 
-- Sem fornecedor de notícias integrado, a curadoria e registro de eventos será manual e com URL verificável.
+- Sem fornecedor de notícias integrado, a curadoria e registro de eventos é manual e requer URL verificável.
+- O protótipo mantém os dados no armazenamento local do navegador; não sincroniza entre dispositivos e não grava no TiDB/Dashcloud.
 - A falta de evento registrado não significa ausência de notícia.
 - Publicação, horário de captura e horário em que o mercado tomou conhecimento podem diferir.
 - O estudo não deve alterar score, regras de entrada ou motores ativos durante a coleta.
