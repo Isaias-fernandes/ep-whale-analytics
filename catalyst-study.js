@@ -45,7 +45,7 @@
       const got=await Promise.allSettled(symbols.map(s=>candles(s,start,end))),data=Object.fromEntries(symbols.map((s,i)=>[s,got[i].status==='fulfilled'?got[i].value:null]));
       const asset=data[ev.symbol]?measure(data[ev.symbol],t,h):null,btc=data.BTCUSDT?measure(data.BTCUSDT,t,h):null;
       const basket=BENCH.map(s=>data[s]?measure(data[s],t,h):null).filter(Boolean);
-      ev.results[name]={status:asset&&btc?'COMPLETO':'PARCIAL',asset,btc,basket:basket.length?basket.reduce((a,x)=>a+x.ret,0)/basket.length:null,basketCount:basket.length,basketTotal:BENCH.length};
+      ev.results[name]={status:asset&&btc&&basket.length===BENCH.length?'COMPLETO':'PARCIAL',asset,btc,basket:basket.length?basket.reduce((a,x)=>a+x.ret,0)/basket.length:null,basketCount:basket.length,basketTotal:BENCH.length};
     }
     ev.updatedAt=new Date().toISOString();save(read().map(x=>x.id===ev.id?ev:x));
   }
