@@ -10,7 +10,7 @@ const esc=s=>String(s??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const n=(x,d=2)=>Number.isFinite(+x)?(+x).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
 const pct=(a,b)=>a>0?(b-a)/a*100:null;
 const read=()=>{try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return{states:x.states||{},events:Array.isArray(x.events)?x.events:[]}}catch{return{states:{},events:[]}}};
-let db=read(),lastScan=0,busy=false;
+let db=read(),lastScan=0,busy=false;const eventById=new Map(db.events.map(e=>[e.id,e]));for(const s of Object.values(db.states))if(s.active&&eventById.has(s.active.id))s.active=eventById.get(s.active.id);
 function adxCalc(c,p=14){
  if(!Array.isArray(c)||c.length<p*2+2)return null;const tr=[],plus=[],minus=[];
  for(let i=1;i<c.length;i++){const up=+c[i].h- +c[i-1].h,down=+c[i-1].l- +c[i].l;plus.push(up>down&&up>0?up:0);minus.push(down>up&&down>0?down:0);tr.push(Math.max(+c[i].h- +c[i].l,Math.abs(+c[i].h- +c[i-1].c),Math.abs(+c[i].l- +c[i-1].c)))}
