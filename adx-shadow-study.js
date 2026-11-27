@@ -33,7 +33,7 @@ function scan(){
   const sym=symOf(asset,key),dir=direction(v),band=bucket(v.adx),id=sym+'|'+dir+'|'+band,price=+(asset.livePrice||asset.price||c.at(-1).c);if(!(price>0))return;
   const old=db.states[sym],currentPatterns={};let active=old?.active;
   if(dir!=='NEUTRA'&&(!active||active.id!==id)){active={id,sym,asset:String(asset.key||sym.replace(/USDT$/,'')),direction:dir,band,startedAt:now,entryPrice:price,maxPrice:price,minPrice:price,lastPrice:price,adxEntry:v.adx,lastAdx:v.adx,pdi:v.pdi,mdi:v.mdi,adxChange:0,timeframe:asset.interval||asset.timeframe||'candles recebidos pelo EP'};db.events.push(active)}
-  if(active){active.lastAdx=v.adx;active.pdi=v.pdi;active.mdi=v.mdi;extrema(active,c);rows.push(active)}
+  if(active)rows.push(active)
   let early=null;try{early=window.EPEarlyLegMotorV1?.calc?.(asset)||null}catch{}
   const patternCandidates=[];
   const prioritized={'Three Rising Valleys':'TRV_CONFIRMED','Bull Flag':'BULL_FLAG_BREAKOUT'};
@@ -46,8 +46,8 @@ function scan(){
    currentPatterns[p.name]=existing||pid;
    let pe=existing?eventById.get(existing):null;
    if(!pe){pe={id:pid+'|'+now,eventType:'PATTERN',pattern:p.name,controlGroup:'PADRAO',adxQualifiedAtEntry:v.adx>=25&&aligned(p.dir),direction:p.dir,sym,asset:String(asset.key||sym.replace(/USDT$/,'')),band:bucket(v.adx),startedAt:now,entryPrice:price,maxPrice:price,minPrice:price,lastPrice:price,adxEntry:v.adx,lastAdx:v.adx,pdi:v.pdi,mdi:v.mdi,adxChange:0,timeframe:'H1'};db.events.push(pe);eventById.set(pe.id,pe);currentPatterns[p.name]=pe.id}
-   pe.lastAdx=v.adx;pe.pdi=v.pdi;pe.mdi=v.mdi;extrema(pe,c);
   }
+  for(const e of db.events)if(e.sym===sym&&!e.outcomes?.['7d']?.mature){e.lastAdx=v.adx;e.pdi=v.pdi;e.mdi=v.mdi;extrema(e,c)}
   db.states[sym]={active,patterns:currentPatterns,latest:{adx:v.adx,pdi:v.pdi,mdi:v.mdi,band,direction:dir,price,at:now}}
  });
  db.events=db.events.slice(-MAX);try{localStorage.setItem(KEY,JSON.stringify(db))}catch{}
