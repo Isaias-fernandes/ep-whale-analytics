@@ -1,6 +1,6 @@
 /* ADX Shadow Study: independent observation only; does not change motor signals. */
 (()=>{'use strict';
-const KEY='ep-adx-shadow-v1',MAX=5000;
+const KEY='ep-adx-shadow-v2',MAX=5000;
 const host=document.querySelector('main');if(!host||document.getElementById('adxShadowCard'))return;
 const card=document.createElement('section');card.className='card';card.id='adxShadowCard';
 card.innerHTML='<h2>🧭 EXPERIMENTO ADX — FORÇA E DIREÇÃO DA TENDÊNCIA</h2><p class="sub">Modo sombra: registra transições entre faixas do ADX 14 em H1, direção pelos DI+/DI−, preço de entrada e máximas/mínimas posteriores. Não altera os motores nem executa ordens. Histórico salvo neste navegador.</p><div id="adxShadowPanel">Aguardando candles...</div>';
