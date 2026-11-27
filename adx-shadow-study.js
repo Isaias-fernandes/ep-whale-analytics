@@ -3,7 +3,7 @@
 const KEY='ep-adx-shadow-v1',MAX=5000;
 const host=document.querySelector('main');if(!host||document.getElementById('adxShadowCard'))return;
 const card=document.createElement('section');card.className='card';card.id='adxShadowCard';
-card.innerHTML='<h2>🧭 EXPERIMENTO ADX — FORÇA E DIREÇÃO DA TENDÊNCIA</h2><p class="sub">Modo sombra: registra transições entre faixas do ADX 14, direção pelos DI+/DI−, preço de entrada e máximas/mínimas posteriores. Não altera os motores nem executa ordens. Histórico salvo neste navegador.</p><div id="adxShadowPanel">Aguardando candles...</div>';
+card.innerHTML='<h2>🧭 EXPERIMENTO ADX — FORÇA E DIREÇÃO DA TENDÊNCIA</h2><p class="sub">Modo sombra: registra transições entre faixas do ADX 14 em H1, direção pelos DI+/DI−, preço de entrada e máximas/mínimas posteriores. Não altera os motores nem executa ordens. Histórico salvo neste navegador.</p><div id="adxShadowPanel">Aguardando candles...</div>';
 const ref=document.getElementById('motor8CycleCard')||document.getElementById('altcoinMomentumCard');if(ref)ref.before(card);else host.append(card);
 const root=card.querySelector('#adxShadowPanel');
 const esc=s=>String(s??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -29,10 +29,10 @@ function extrema(e,c){
 function scan(){
  if(busy||document.hidden)return;const map=window.CryptoApp?.getData?.();if(!map?.size)return;busy=true;const now=Date.now(),rows=[];
  map.forEach((asset,key)=>{
-  const c=asset?.candles||[];if(c.length<30)return;const v=adxCalc(c.slice(-100));if(!v)return;
-  const sym=symOf(asset,key),dir=direction(v),band=bucket(v.adx),id=sym+'|'+dir+'|'+band,price=+(asset.livePrice||asset.price||c.at(-1).c);if(!(price>0))return;
+  const liveCandles=asset?.candles||[];if(liveCandles.length<30)return;const sym=symOf(asset,key),c=window.EPMotor7Minimum?.getCandles?.(sym);if(!Array.isArray(c)||c.length<30)return;const v=adxCalc(c.slice(-100));if(!v)return;
+  const dir=direction(v),band=bucket(v.adx),id=sym+'|'+dir+'|'+band,price=+(asset.livePrice||asset.price||c.at(-1).c);if(!(price>0))return;
   const old=db.states[sym],currentPatterns={};let active=old?.active;
-  if(dir!=='NEUTRA'&&(!active||active.id!==id)){active={id,sym,asset:String(asset.key||sym.replace(/USDT$/,'')),direction:dir,band,startedAt:now,entryPrice:price,maxPrice:price,minPrice:price,lastPrice:price,adxEntry:v.adx,lastAdx:v.adx,pdi:v.pdi,mdi:v.mdi,adxChange:0,timeframe:asset.interval||asset.timeframe||'candles recebidos pelo EP'};db.events.push(active)}
+  if(dir!=='NEUTRA'&&(!active||active.id!==id)){active={id,sym,asset:String(asset.key||sym.replace(/USDT$/,'')),direction:dir,band,startedAt:now,entryPrice:price,maxPrice:price,minPrice:price,lastPrice:price,adxEntry:v.adx,lastAdx:v.adx,pdi:v.pdi,mdi:v.mdi,adxChange:0,timeframe:'H1'};db.events.push(active)}
   if(active)rows.push(active)
   let early=null;try{early=window.EPEarlyLegMotorV1?.calc?.(asset)||null}catch{}
   const patternCandidates=[];
