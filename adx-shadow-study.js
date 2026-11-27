@@ -10,7 +10,7 @@ const esc=s=>String(s??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const n=(x,d=2)=>Number.isFinite(+x)?(+x).toLocaleString('pt-BR',{maximumFractionDigits:d}):'—';
 const pct=(a,b)=>a>0?(b-a)/a*100:null;
 const read=()=>{try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return{states:x.states||{},events:Array.isArray(x.events)?x.events:[]}}catch{return{states:{},events:[]}}};
-let db=read(),lastScan=0,busy=false;const eventById=new Map(db.events.map(e=>[e.id,e]));for(const s of Object.values(db.states))if(s.active&&eventById.has(s.active.id))s.active=eventById.get(s.active.id);
+let db=read(),lastScan=0,busy=false;const eventById=new Map(db.events.map(e=>[e.id,e]));for(const s of Object.values(db.states)){if(s.active&&eventById.has(s.active.id))s.active=eventById.get(s.active.id);s.patterns=s.patterns||{}}
 function adxCalc(c,p=14){
  if(!Array.isArray(c)||c.length<p*2+2)return null;const tr=[],plus=[],minus=[];
  for(let i=1;i<c.length;i++){const up=+c[i].h- +c[i-1].h,down=+c[i-1].l- +c[i].l;plus.push(up>down&&up>0?up:0);minus.push(down>up&&down>0?down:0);tr.push(Math.max(+c[i].h- +c[i].l,Math.abs(+c[i].h- +c[i-1].c),Math.abs(+c[i].l- +c[i-1].c)))}
@@ -31,17 +31,31 @@ function scan(){
  map.forEach((asset,key)=>{
   const c=asset?.candles||[];if(c.length<30)return;const v=adxCalc(c.slice(-100));if(!v)return;
   const sym=symOf(asset,key),dir=direction(v),band=bucket(v.adx),id=sym+'|'+dir+'|'+band,price=+(asset.livePrice||asset.price||c.at(-1).c);if(!(price>0))return;
-  const old=db.states[sym];let active=old?.active;
+  const old=db.states[sym],currentPatterns={};let active=old?.active;
   if(dir!=='NEUTRA'&&(!active||active.id!==id)){active={id,sym,asset:String(asset.key||sym.replace(/USDT$/,'')),direction:dir,band,startedAt:now,entryPrice:price,maxPrice:price,minPrice:price,lastPrice:price,adxEntry:v.adx,lastAdx:v.adx,pdi:v.pdi,mdi:v.mdi,adxChange:0,timeframe:asset.interval||asset.timeframe||'candles recebidos pelo EP'};db.events.push(active)}
   if(active){active.lastAdx=v.adx;active.pdi=v.pdi;active.mdi=v.mdi;extrema(active,c);rows.push(active)}
-  db.states[sym]={active,latest:{adx:v.adx,pdi:v.pdi,mdi:v.mdi,band,direction:dir,price,at:now}}
+  let early=null;try{early=window.EPEarlyLegMotorV1?.calc?.(asset)||null}catch{}
+  const patternCandidates=[];
+  const prioritized={'Three Rising Valleys':'TRV_CONFIRMED','Bull Flag':'BULL_FLAG_BREAKOUT'};
+  if(early?.patternConfirmed&&prioritized[early.confirmedPattern])patternCandidates.push({name:prioritized[early.confirmedPattern],dir:early.dir||'BUY',confirmed:true});
+  const min=window.EPMotor7Minimum?.get?.(sym),min30=min?.windows?.['30d'];
+  if(min30&&Number.isFinite(+min30.distance)&&+min30.distance<=.5&&early?.dir==='BUY'&&+early?.buyerFlow?.ratio>=.55)patternCandidates.push({name:'MIN30_FLOW',dir:'BUY',confirmed:true});
+  const aligned=(d)=>d==='BUY'?v.pdi>v.mdi:d==='SELL'?v.mdi>v.pdi:false;
+  for(const p of patternCandidates){
+   const pid=sym+'|PATTERN|'+p.name+'|'+p.dir,existing=old?.patterns?.[p.name];
+   currentPatterns[p.name]=existing||pid;
+   let pe=existing?eventById.get(existing):null;
+   if(!pe){pe={id:pid+'|'+now,eventType:'PATTERN',pattern:p.name,controlGroup:'PADRAO',adxQualifiedAtEntry:v.adx>=25&&aligned(p.dir),direction:p.dir,sym,asset:String(asset.key||sym.replace(/USDT$/,'')),band:bucket(v.adx),startedAt:now,entryPrice:price,maxPrice:price,minPrice:price,lastPrice:price,adxEntry:v.adx,lastAdx:v.adx,pdi:v.pdi,mdi:v.mdi,adxChange:0,timeframe:'H1'};db.events.push(pe);eventById.set(pe.id,pe);currentPatterns[p.name]=pe.id}
+   pe.lastAdx=v.adx;pe.pdi=v.pdi;pe.mdi=v.mdi;extrema(pe,c);
+  }
+  db.states[sym]={active,patterns:currentPatterns,latest:{adx:v.adx,pdi:v.pdi,mdi:v.mdi,band,direction:dir,price,at:now}}
  });
  db.events=db.events.slice(-MAX);try{localStorage.setItem(KEY,JSON.stringify(db))}catch{}
  if(now-lastScan>30000){lastScan=now;render(rows)}busy=false
 }
 function render(rows){
- const all=db.events.slice().reverse(),active=rows.filter(e=>!e.outcomes?.['7d']?.mature),summary=[['Episódios',db.events.length],['Ativos',active.length],['ADX ≥25',db.events.filter(e=>e.adxEntry>=25).length],['ADX ≥40',db.events.filter(e=>e.adxEntry>=40).length]];
- root.innerHTML='<div class="sub">Faixas: abaixo de 20 = fraca; 20–24,9 = ganhando força; 25–39,9 = forte; 40 ou mais = muito forte. A direção vem da comparação +DI/−DI; ADX isolado não indica alta ou baixa.</div><div class="m8-grid">'+summary.map(([a,b])=>'<div class="m8-stat"><b>'+n(b,0)+'</b><small>'+a+'</small></div>').join('')+'</div><button id="adxExport" type="button" style="width:auto">Baixar histórico JSON</button> <button id="adxRefresh" type="button" style="width:auto">Atualizar leitura</button><div class="m8-tablewrap"><table><thead><tr><th>Entrada</th><th>Ativo</th><th>Direção</th><th>Faixa ADX</th><th>ADX inicial → atual</th><th>+DI / −DI</th><th>Preço entrada</th><th>Máxima depois</th><th>Mínima depois</th><th>Retorno atual</th><th>24h / 72h / 7d</th></tr></thead><tbody>'+all.slice(0,100).map(e=>'<tr><td>'+new Date(e.startedAt).toLocaleString('pt-BR')+'</td><td>'+esc(e.asset)+'</td><td>'+esc(e.direction)+'</td><td>'+esc(e.band)+'</td><td>'+n(e.adxEntry,1)+' → '+n(e.lastAdx,1)+' ('+(e.adxChange>=0?'+':'')+n(e.adxChange,1)+')</td><td>'+n(e.pdi,1)+' / '+n(e.mdi,1)+'</td><td>'+n(e.entryPrice,8)+'</td><td>'+n(e.maxPrice,8)+'</td><td>'+n(e.minPrice,8)+'</td><td>'+n(pct(e.entryPrice,e.lastPrice),2)+'%</td><td>'+[e.outcomes?.['24h'],e.outcomes?.['72h'],e.outcomes?.['7d']].map(x=>x?.mature?'+'+n(x.highPct,2)+'% / '+n(x.lowPct,2)+'%':'aguardando').join(' • ')+'</td></tr>').join('')+'</tbody></table></div><p class="sub">Máxima e mínima são atualizadas usando os extremos dos candles disponíveis após a entrada. Episódios iniciados por troca de faixa/direção são registrados separadamente. Resultados observacionais, sem taxas ou execução de ordens.</p>';
+ const all=db.events.slice().reverse(),active=db.events.filter(e=>!e.outcomes?.['7d']?.mature),pat=db.events.filter(e=>e.eventType==='PATTERN'),qualified=pat.filter(e=>e.adxQualifiedAtEntry),summary=[['Episódios ADX',db.events.filter(e=>e.eventType!=='PATTERN').length],['Eventos de padrão',pat.length],['Padrão + ADX ≥25 alinhado',qualified.length],['ADX ≥40',db.events.filter(e=>e.eventType!=='PATTERN'&&e.adxEntry>=40).length]];
+ root.innerHTML='<div class="sub">Faixas: abaixo de 20 = fraca; 20–24,9 = ganhando força; 25–39,9 = forte; 40 ou mais = muito forte. A direção vem de +DI/−DI. Padrões observados: TRV confirmado, Bull Flag confirmado e mínima 30D + fluxo comprador ≥55%. “Padrão + ADX” exige ADX ≥25 e DI alinhado no momento da entrada; todos os padrões também ficam registrados como controle.</div><div class="m8-grid">'+summary.map(([a,b])=>'<div class="m8-stat"><b>'+n(b,0)+'</b><small>'+a+'</small></div>').join('')+'</div><button id="adxExport" type="button" style="width:auto">Baixar histórico JSON</button> <button id="adxRefresh" type="button" style="width:auto">Atualizar leitura</button><div class="m8-tablewrap"><table><thead><tr><th>Entrada</th><th>Ativo</th><th>Padrão / grupo</th><th>Direção</th><th>Faixa ADX</th><th>ADX inicial → atual</th><th>+DI / −DI</th><th>Preço entrada</th><th>Máxima depois</th><th>Mínima depois</th><th>Retorno atual</th><th>24h / 72h / 7d</th></tr></thead><tbody>'+all.slice(0,100).map(e=>'<tr><td>'+new Date(e.startedAt).toLocaleString('pt-BR')+'</td><td>'+esc(e.asset)+'</td><td>'+esc(e.eventType==='PATTERN'?e.pattern+' • '+(e.adxQualifiedAtEntry?'Padrão + ADX':'Padrão controle'):'ADX isolado')+'</td><td>'+esc(e.direction)+'</td><td>'+esc(e.band)+'</td><td>'+n(e.adxEntry,1)+' → '+n(e.lastAdx,1)+' ('+(e.adxChange>=0?'+':'')+n(e.adxChange,1)+')</td><td>'+n(e.pdi,1)+' / '+n(e.mdi,1)+'</td><td>'+n(e.entryPrice,8)+'</td><td>'+n(e.maxPrice,8)+'</td><td>'+n(e.minPrice,8)+'</td><td>'+n(pct(e.entryPrice,e.lastPrice),2)+'%</td><td>'+[e.outcomes?.['24h'],e.outcomes?.['72h'],e.outcomes?.['7d']].map(x=>x?.mature?'+'+n(x.highPct,2)+'% / '+n(x.lowPct,2)+'%':'aguardando').join(' • ')+'</td></tr>').join('')+'</tbody></table></div><p class="sub">Máxima e mínima são atualizadas usando os extremos dos candles disponíveis após a entrada. Para padrões, a comparação é entre todos os eventos de padrão e o subconjunto com ADX ≥25 e DI alinhado na entrada; ADX isolado serve de referência separada. Máxima/mínima usam os extremos dos candles disponíveis depois da entrada. Sem taxas ou execução de ordens.</p>';
  root.querySelector('#adxRefresh')?.addEventListener('click',scan);
  root.querySelector('#adxExport')?.addEventListener('click',()=>{const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),events:db.events},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ep-adx-shadow.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)})
 }
